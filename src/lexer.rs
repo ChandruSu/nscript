@@ -1,0 +1,298 @@
+pub mod lexer {
+    use std::str::Chars;
+
+    use crate::utils::{error, io};
+
+    pub static MAX_PRECEDENCE: u8 = 10;
+
+    #[derive(Debug)]
+    pub enum Op {
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Mod,
+        Eq,
+        Neq,
+        Le,
+        Ge,
+        Lt,
+        Gt,
+        Or,
+        And,
+        Not,
+        Shr,
+        Shl,
+        Assign,
+        AddEq,
+        SubEq,
+        MulEq,
+        DivEq,
+        ModEq,
+        BitOr,
+        BitXor,
+        BitAnd,
+        BitNot,
+    }
+
+    #[derive(Debug)]
+    pub enum Tk {
+        Int(i32),
+        Float(f32),
+        String(String),
+        Id(String),
+        Operator(Op),
+        Comment,
+        Let,
+        Fun,
+        If,
+        Else,
+        While,
+        Return,
+        EOF,
+        Whitespace,
+        Newline,
+        LeftBrace,
+        RightBrace,
+        LeftParen,
+        RightParen,
+        LeftBracket,
+        RightBracket,
+        Semi,
+        Comma,
+        Dot,
+    }
+
+    #[derive(Debug)]
+    pub struct Token {
+        pub tk: Tk,
+        pub pos: io::Pos,
+    }
+
+    pub struct Lexer<'a> {
+        stream: Chars<'a>,
+        current_char: char,
+        lookahead_char: char,
+        cursor: io::Pos,
+    }
+
+    impl Token {
+        pub fn new(tk: Tk, pos: io::Pos) -> Self {
+            Self { tk, pos }
+        }
+    }
+
+    impl<'a> Lexer<'a> {
+        pub fn new(src: &'a io::Source) -> Self {
+            let mut stream = src.char_stream();
+            Self {
+                current_char: '\0',
+                lookahead_char: stream.next().unwrap_or('\0'),
+                stream,
+                cursor: io::Pos {
+                    offset: -1,
+                    column: -1,
+                    line: 0,
+                    line_start: 0,
+                    src_id: src.id(),
+                },
+            }
+        }
+
+        fn advance(&mut self) -> char {
+            if self.current_char == '\n' {
+                self.cursor.column = -1;
+                self.cursor.line += 1;
+                self.cursor.line_start = (self.cursor.offset as u32) + 1;
+            }
+
+            self.current_char = self.lookahead_char;
+            self.lookahead_char = self.stream.next().unwrap_or('\0');
+
+            self.cursor.column += 1;
+            self.cursor.offset += 1;
+            self.current_char
+        }
+
+        pub fn next_token(&mut self) -> Result<Token, error::LexerError> {
+            let c = self.advance();
+            let pos = self.cursor;
+
+            let tk = match c {
+                c if c.is_ascii_alphabetic() || c == '_' => self.extract_identifier(),
+                c if c.is_digit(10) => self.extract_number(),
+                '"' => self.extract_string(),
+                '#' => self.extract_comment(),
+                '{' => Tk::LeftBrace,
+                '}' => Tk::RightBrace,
+                '(' => Tk::LeftParen,
+                ')' => Tk::RightParen,
+                '[' => Tk::LeftBracket,
+                ']' => Tk::RightBracket,
+                ';' => Tk::Semi,
+                ',' => Tk::Comma,
+                '.' => Tk::Dot,
+                '\n' => Tk::Newline,
+                '\0' => Tk::EOF,
+                '\t' | '\r' | ' ' => Tk::Whitespace,
+                c => match (c, self.lookahead_char) {
+                    ('+', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::AddEq)
+                    }
+                    ('-', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::SubEq)
+                    }
+                    ('*', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::MulEq)
+                    }
+                    ('/', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::DivEq)
+                    }
+                    ('%', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::ModEq)
+                    }
+                    ('=', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::Eq)
+                    }
+                    ('!', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::Neq)
+                    }
+                    ('<', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::Le)
+                    }
+                    ('>', '=') => {
+                        self.advance();
+                        Tk::Operator(Op::Ge)
+                    }
+                    ('>', '>') => {
+                        self.advance();
+                        Tk::Operator(Op::Shr)
+                    }
+                    ('<', '<') => {
+                        self.advance();
+                        Tk::Operator(Op::Shl)
+                    }
+                    ('|', '|') => {
+                        self.advance();
+                        Tk::Operator(Op::Or)
+                    }
+                    ('&', '&') => {
+                        self.advance();
+                        Tk::Operator(Op::And)
+                    }
+                    ('+', _) => Tk::Operator(Op::Add),
+                    ('-', _) => Tk::Operator(Op::Sub),
+                    ('*', _) => Tk::Operator(Op::Mul),
+                    ('/', _) => Tk::Operator(Op::Div),
+                    ('%', _) => Tk::Operator(Op::Mod),
+                    ('<', _) => Tk::Operator(Op::Lt),
+                    ('>', _) => Tk::Operator(Op::Gt),
+                    ('!', _) => Tk::Operator(Op::Not),
+                    ('|', _) => Tk::Operator(Op::BitOr),
+                    ('^', _) => Tk::Operator(Op::BitXor),
+                    ('&', _) => Tk::Operator(Op::BitAnd),
+                    ('~', _) => Tk::Operator(Op::BitNot),
+                    ('=', _) => Tk::Operator(Op::Assign),
+                    _ => {
+                        return Err(error::LexerError {
+                            msg: format!("Invalid token reached starting with {}", c),
+                            pos,
+                        })
+                    }
+                },
+            };
+
+            Ok(Token::new(tk, pos))
+        }
+
+        pub fn next_valid_token(&mut self) -> Result<Token, error::LexerError> {
+            let mut token = self.next_token();
+            while let Ok(ref tk) = token {
+                match tk.tk {
+                    Tk::Comment | Tk::Whitespace | Tk::Newline => token = self.next_token(),
+                    _ => break,
+                }
+            }
+            token
+        }
+
+        fn extract_identifier(&mut self) -> Tk {
+            let mut buf = self.current_char.to_string();
+
+            while self.lookahead_char.is_alphanumeric() || self.lookahead_char == '_' {
+                buf.push(self.advance());
+            }
+
+            match buf.as_str() {
+                "let" => Tk::Let,
+                "fun" => Tk::Fun,
+                "if" => Tk::If,
+                "else" => Tk::Else,
+                "while" => Tk::While,
+                "return" => Tk::Return,
+                _ => Tk::Id(buf),
+            }
+        }
+
+        fn extract_number(&mut self) -> Tk {
+            let mut buf = self.current_char.to_string();
+            let mut is_float = false;
+
+            while self.lookahead_char.is_digit(10) || (self.lookahead_char == '.' && !is_float) {
+                is_float = is_float || self.lookahead_char == '.';
+                buf.push(self.advance());
+            }
+
+            if is_float {
+                Tk::Float(buf.parse::<f32>().unwrap_or(0.0))
+            } else {
+                Tk::Int(buf.parse::<i32>().unwrap_or(0))
+            }
+        }
+
+        fn extract_string(&mut self) -> Tk {
+            let mut buf = String::new();
+
+            while self.lookahead_char != '"' && self.lookahead_char != '\0' {
+                buf.push(self.advance());
+            }
+
+            self.advance();
+            Tk::String(buf)
+        }
+
+        fn extract_comment(&mut self) -> Tk {
+            while self.lookahead_char != '\n' && self.lookahead_char != '\0' {
+                self.advance();
+            }
+            Tk::Comment
+        }
+    }
+
+    impl Op {
+        pub fn precedence(self) -> u8 {
+            match self {
+                Op::Or => 10,
+                Op::And => 9,
+                Op::BitOr => 8,
+                Op::BitXor => 7,
+                Op::BitAnd => 6,
+                Op::Eq | Op::Neq => 5,
+                Op::Gt | Op::Ge | Op::Lt | Op::Le => 4,
+                Op::Shl | Op::Shr => 3,
+                Op::Add | Op::Sub => 2,
+                Op::Mul | Op::Div | Op::Mod => 1,
+                Op::Not | Op::BitNot => 0,
+                _ => MAX_PRECEDENCE,
+            }
+        }
+    }
+}
