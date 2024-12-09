@@ -1,4 +1,5 @@
-use ns::lexer::lexer;
+use ns::lexer::lexer::{self};
+use ns::parser::parser;
 use ns::utils::io;
 
 fn main() {
@@ -6,19 +7,17 @@ fn main() {
     let source = match manager.load_source_file("./examples/test.ns") {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("ERROR: {}", e);
+            e.dump_error(&manager);
             return;
         }
     };
 
-    println!("Source code\n: {:#?}", source);
-
     let mut lexer = lexer::Lexer::new(source);
 
-    while let Ok(token) = lexer.next_token() {
-        match token.tk {
-            lexer::Tk::EOF => break,
-            _ => println!("{:?}", token),
-        };
+    let mut parser = parser::Parser::new(&mut lexer);
+
+    match parser.parse() {
+        Ok(ast) => println!("{}", ast),
+        Err(e) => e.dump_error(&manager),
     }
 }

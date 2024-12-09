@@ -12,3 +12,4 @@ name = "ns"
 path = "src/main.rs"
 
 [dependencies]
+colored = "2.1.0"
