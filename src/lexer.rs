@@ -5,7 +5,7 @@ pub mod lexer {
 
     pub static MAX_PRECEDENCE: u8 = 10;
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
     pub enum Op {
         Add,
         Sub,
@@ -35,9 +35,11 @@ pub mod lexer {
         BitNot,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum Tk {
+        Null,
         Int(i32),
+        Bool(bool),
         Float(f32),
         String(String),
         Id(String),
@@ -63,7 +65,7 @@ pub mod lexer {
         Dot,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub struct Token {
         pub tk: Tk,
         pub pos: io::Pos,
@@ -74,29 +76,63 @@ pub mod lexer {
         current_char: char,
         lookahead_char: char,
         cursor: io::Pos,
+
+        tki: usize,
+        tks: [Token; 3],
     }
 
     impl Token {
         pub fn new(tk: Tk, pos: io::Pos) -> Self {
             Self { tk, pos }
         }
+
+        pub fn as_id(&self) -> Option<&String> {
+            match &self.tk {
+                Tk::Id(id) => Some(&id),
+                _ => None,
+            }
+        }
     }
 
     impl<'a> Lexer<'a> {
         pub fn new(src: &'a io::Source) -> Self {
             let mut stream = src.char_stream();
+            let cursor = io::Pos {
+                offset: -1,
+                column: -1,
+                line: 0,
+                line_start: 0,
+                src_id: src.id(),
+            };
+
             Self {
                 current_char: '\0',
                 lookahead_char: stream.next().unwrap_or('\0'),
                 stream,
-                cursor: io::Pos {
-                    offset: -1,
-                    column: -1,
-                    line: 0,
-                    line_start: 0,
-                    src_id: src.id(),
-                },
+                cursor,
+                tki: 0,
+                tks: [
+                    Token::new(Tk::EOF, cursor),
+                    Token::new(Tk::EOF, cursor),
+                    Token::new(Tk::EOF, cursor),
+                ],
             }
+        }
+
+        pub fn cursor(&self) -> io::Pos {
+            self.cursor
+        }
+
+        pub fn head_token(&self) -> &Token {
+            &self.tks[(self.tki + 1) % 3]
+        }
+
+        pub fn prev_token(&self) -> &Token {
+            &self.tks[(self.tki) % 3]
+        }
+
+        pub fn loohahead_token(&self) -> &Token {
+            &self.tks[(self.tki + 2) % 3]
         }
 
         fn advance(&mut self) -> char {
@@ -114,7 +150,7 @@ pub mod lexer {
             self.current_char
         }
 
-        pub fn next_token(&mut self) -> Result<Token, error::LexerError> {
+        fn next_token(&mut self) -> Result<Token, error::Error> {
             let c = self.advance();
             let pos = self.cursor;
 
@@ -201,27 +237,11 @@ pub mod lexer {
                     ('&', _) => Tk::Operator(Op::BitAnd),
                     ('~', _) => Tk::Operator(Op::BitNot),
                     ('=', _) => Tk::Operator(Op::Assign),
-                    _ => {
-                        return Err(error::LexerError {
-                            msg: format!("Invalid token reached starting with {}", c),
-                            pos,
-                        })
-                    }
+                    _ => return Err(error::Error::invalid_token_char(c, pos)),
                 },
             };
 
             Ok(Token::new(tk, pos))
-        }
-
-        pub fn next_valid_token(&mut self) -> Result<Token, error::LexerError> {
-            let mut token = self.next_token();
-            while let Ok(ref tk) = token {
-                match tk.tk {
-                    Tk::Comment | Tk::Whitespace | Tk::Newline => token = self.next_token(),
-                    _ => break,
-                }
-            }
-            token
         }
 
         fn extract_identifier(&mut self) -> Tk {
@@ -238,6 +258,9 @@ pub mod lexer {
                 "else" => Tk::Else,
                 "while" => Tk::While,
                 "return" => Tk::Return,
+                "true" => Tk::Bool(true),
+                "false" => Tk::Bool(false),
+                "null" => Tk::Null,
                 _ => Tk::Id(buf),
             }
         }
@@ -274,6 +297,22 @@ pub mod lexer {
                 self.advance();
             }
             Tk::Comment
+        }
+
+        pub fn next_valid_token(&mut self) -> Result<&Token, error::Error> {
+            let mut token = self.next_token();
+            while let Ok(ref tk) = token {
+                match tk.tk {
+                    Tk::Comment | Tk::Whitespace | Tk::Newline => token = self.next_token(),
+                    _ => break,
+                }
+            }
+
+            token.map(|token| {
+                self.tks[self.tki % 3] = token;
+                self.tki += 1;
+                &self.tks[(self.tki + 2) % 3]
+            })
         }
     }
 
