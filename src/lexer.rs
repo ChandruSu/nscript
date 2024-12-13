@@ -3,7 +3,7 @@ pub mod lexer {
 
     use crate::utils::{error, io};
 
-    pub static MAX_PRECEDENCE: u8 = 10;
+    pub static MAX_OP_PRECEDENCE: u8 = 10;
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub enum Op {
@@ -76,7 +76,6 @@ pub mod lexer {
         current_char: char,
         lookahead_char: char,
         cursor: io::Pos,
-
         tki: usize,
         tks: [Token; 3],
     }
@@ -170,7 +169,12 @@ pub mod lexer {
                 '.' => Tk::Dot,
                 '\n' => Tk::Newline,
                 '\0' => Tk::EOF,
-                '\t' | '\r' | ' ' => Tk::Whitespace,
+                '\t' | '\r' | ' ' => {
+                    while let '\t' | '\r' | ' ' = self.lookahead_char {
+                        self.advance();
+                    }
+                    Tk::Whitespace
+                }
                 c => match (c, self.lookahead_char) {
                     ('+', '=') => {
                         self.advance();
@@ -330,7 +334,7 @@ pub mod lexer {
                 Op::Add | Op::Sub => 2,
                 Op::Mul | Op::Div | Op::Mod => 1,
                 Op::Not | Op::BitNot => 0,
-                _ => MAX_PRECEDENCE,
+                _ => MAX_OP_PRECEDENCE,
             }
         }
     }

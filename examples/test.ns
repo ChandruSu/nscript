@@ -1,3 +1,13 @@
-fun main() {
-    printf("Hello");
+let x = 3;
+
+fun mul(a) {
+    while a % 17 > 0 {
+        a += 1;
+    }
+
+    return fun (x) {
+        return a * x;
+    };
 }
+
+let dub3 = mul(2)(3);

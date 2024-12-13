@@ -66,13 +66,16 @@ pub mod io {
 }
 
 pub mod error {
+
     use crate::lexer::lexer;
 
     use super::io;
 
     pub enum ErrorType {
         IOError,
+        NameError(String, io::Pos),
         SyntaxError(io::Pos),
+        CompilerError(io::Pos),
     }
 
     pub struct Error {
@@ -139,14 +142,70 @@ pub mod error {
             }
         }
 
+        pub fn invalid_ast_node(pos: io::Pos) -> Self {
+            Self {
+                msg: format!("Unexpected AST node at this position - cannot be compiled"),
+                err_type: ErrorType::CompilerError(pos),
+            }
+        }
+
+        pub fn invalid_return_position(pos: io::Pos) -> Self {
+            Self {
+                msg: format!("Return statement from invalid position"),
+                err_type: ErrorType::SyntaxError(pos),
+            }
+        }
+
+        pub fn unknown_var_name(name: String, pos: io::Pos) -> Self {
+            Self {
+                msg: format!("Unknown variable referenced: '{}'", name),
+                err_type: ErrorType::NameError(name, pos),
+            }
+        }
+
+        pub fn duplicate_var_name(name: String, pos: io::Pos) -> Self {
+            Self {
+                msg: format!("Variable has already been used in scope: '{}'", name),
+                err_type: ErrorType::NameError(name, pos),
+            }
+        }
+
+        pub fn mutate_closure(name: String, pos: io::Pos) -> Self {
+            Self {
+                msg: format!(
+                    "Variable is not in accessible scope and cannot be mutated: '{}'",
+                    name
+                ),
+                err_type: ErrorType::NameError(name, pos),
+            }
+        }
+
         pub fn dump_error(&self, sources: &io::SourceManager) {
             match &self.err_type {
                 ErrorType::IOError => {
                     eprintln!("IO ERROR: {}", self.msg)
                 }
+                ErrorType::CompilerError(pos) => {
+                    eprintln!(
+                        "COMPILER ERROR: {} at {}:{}:{}",
+                        self.msg,
+                        sources.get_source(pos.src_id).unwrap().get_origin(),
+                        pos.line + 1,
+                        pos.column + 1
+                    )
+                }
                 ErrorType::SyntaxError(pos) => {
                     eprintln!(
                         "SYNTAX ERROR: {} at {}:{}:{}",
+                        self.msg,
+                        sources.get_source(pos.src_id).unwrap().get_origin(),
+                        pos.line + 1,
+                        pos.column + 1
+                    )
+                }
+                ErrorType::NameError(_, pos) => {
+                    eprintln!(
+                        "NAME ERROR: {} at {}:{}:{}",
                         self.msg,
                         sources.get_source(pos.src_id).unwrap().get_origin(),
                         pos.line + 1,
