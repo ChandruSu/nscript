@@ -1,4 +1,3 @@
-let x = 3;
 
 fun mul(a) {
     while a % 17 > 0 {

@@ -2,6 +2,7 @@ use ns::compiler::compiler;
 use ns::lexer::lexer::{self};
 use ns::parser::parser;
 use ns::utils::io;
+use ns::vm::vm;
 
 fn main() {
     let mut manager = io::SourceManager::new();
@@ -27,17 +28,13 @@ fn main() {
         }
     };
 
-    let _ = match compiler::Compiler::new().compile(&ast) {
-        Ok(compiler) => {
-            for (idx, program) in compiler.programs().iter().enumerate() {
-                println!("[idx = {}]\n{:?}", idx, program);
-            }
+    let mut env = vm::Env::new();
+    if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {
+        e.dump_error(&manager);
+        return;
+    }
 
-            compiler
-        }
-        Err(e) => {
-            e.dump_error(&manager);
-            return;
-        }
-    };
+    for (idx, program) in env.segments().iter().enumerate() {
+        println!("[idx = {}]\n{:?}", idx, program);
+    }
 }

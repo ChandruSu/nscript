@@ -1,17 +1,13 @@
 pub mod compiler {
-    use core::fmt;
-    use std::{any::Any, collections::HashMap, path::Iter, vec};
-
-    type Reg = u32;
-
-    use colored::Colorize;
-
     use crate::{
         lexer::lexer::{self, Op},
         parser::parser::{self, Ast, AstNode},
         utils::{error, io},
         vm::vm,
     };
+    use std::{collections::HashMap, vec};
+
+    pub type Reg = u16;
 
     #[derive(Debug)]
     pub enum Ins {
@@ -49,183 +45,26 @@ pub mod compiler {
         RetNone,
     }
 
-    pub struct Segment {
-        name: String,
-        global: bool,
-        slots: Reg,
-        bytecode: Vec<Ins>,
-        constants: Vec<vm::Value>,
-        symbols: HashMap<String, Reg>,
-        upvals: HashMap<String, Reg>,
-        parent: Option<usize>,
+    pub struct Compiler<'a> {
+        env: &'a mut vm::Env,
+        curr_seg: usize,
     }
 
-    pub struct Compiler {
-        segments: Vec<Segment>,
-        current_segment: usize,
-    }
-
-    impl Segment {
-        pub fn new(name: String, global: bool) -> Self {
-            Self {
-                name,
-                global,
-                slots: 0,
-                bytecode: vec![],
-                constants: vec![],
-                upvals: HashMap::new(),
-                symbols: HashMap::new(),
-                parent: None,
-            }
+    impl<'a> Compiler<'a> {
+        pub fn new(env: &'a mut vm::Env) -> Self {
+            Self { env, curr_seg: 0 }
         }
 
-        pub fn name(&self) -> &String {
-            &self.name
+        fn seg(&self) -> &vm::Segment {
+            &self.env.segments()[self.curr_seg]
         }
 
-        pub fn ins(&self) -> &Vec<Ins> {
-            &self.bytecode
+        fn seg_mut(&mut self) -> &mut vm::Segment {
+            &mut self.env.segments_mut()[self.curr_seg]
         }
 
-        pub fn ins_mut(&mut self) -> &mut Vec<Ins> {
-            &mut self.bytecode
-        }
-
-        pub fn count(&self) -> usize {
-            self.bytecode.len()
-        }
-
-        pub fn slots(&self) -> Reg {
-            self.slots
-        }
-
-        pub fn locals(&self) -> usize {
-            self.symbols.len()
-        }
-
-        pub fn upvals(&self) -> usize {
-            self.upvals.len()
-        }
-
-        pub fn consts(&self) -> usize {
-            self.constants.len()
-        }
-
-        pub fn global(&self) -> bool {
-            self.global
-        }
-
-        pub fn local(&self) -> bool {
-            !self.global
-        }
-
-        pub fn spare_reg(&self) -> Reg {
-            if self.global() {
-                0
-            } else {
-                self.slots - 1
-            }
-        }
-
-        pub fn new_symbol(&mut self, id: String) -> Option<Reg> {
-            if self.symbols.contains_key(&id) {
-                None
-            } else {
-                let location = Reg::try_from(self.symbols.len()).unwrap();
-                self.symbols.insert(id, location);
-                Some(location)
-            }
-        }
-
-        pub fn get_symbol(&self, id: &String) -> Option<Reg> {
-            self.symbols.get(id).map(|r| *r)
-        }
-
-        pub fn new_upval(&mut self, id: String) -> Option<Reg> {
-            if self.upvals.contains_key(&id) {
-                None
-            } else {
-                let location = Reg::try_from(self.upvals.len()).unwrap();
-                self.upvals.insert(id, location);
-                Some(location)
-            }
-        }
-
-        pub fn get_upval(&self, id: &String) -> Option<Reg> {
-            self.upvals.get(id).map(|r| *r)
-        }
-
-        pub fn storek(&mut self, v: vm::Value) -> Reg {
-            Reg::try_from(
-                self.constants
-                    .iter()
-                    .position(|v0| *v0 == v)
-                    .unwrap_or_else(|| {
-                        self.constants.push(v);
-                        self.constants.len() - 1
-                    }),
-            )
-            .unwrap()
-        }
-    }
-
-    impl fmt::Debug for Segment {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            writeln!(
-                f,
-                "{} {}(slots = {}, locals = {}, upvals = {}, consts = {}) {}\n{}{}\n{}\n",
-                "function".green(),
-                self.name().cyan(),
-                self.slots(),
-                self.locals(),
-                self.upvals(),
-                self.consts(),
-                "do".green(),
-                self.constants
-                    .iter()
-                    .enumerate()
-                    .map(|(i, k)| format!("{:02} {} {:?}\n", i, ".const".red(), k))
-                    .collect::<Vec<String>>()
-                    .join("")
-                    .trim_start(),
-                self.ins()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, op)| format!(
-                        "{:02} {}\n",
-                        i,
-                        format!("{:?}", op).to_lowercase().green()
-                    ))
-                    .collect::<Vec<String>>()
-                    .join("")
-                    .trim_end(),
-                "end".green(),
-            )
-        }
-    }
-
-    impl Compiler {
-        pub fn new() -> Self {
-            Self {
-                current_segment: 0,
-                segments: vec![Segment::new("__start".to_string(), true)],
-            }
-        }
-
-        fn seg(&self) -> &Segment {
-            &self.segments[self.current_segment]
-        }
-
-        fn seg_mut(&mut self) -> &mut Segment {
-            &mut self.segments[self.current_segment]
-        }
-
-        pub fn programs(&self) -> &Vec<Segment> {
-            &self.segments
-        }
-
-        fn global_seg(&self) -> &Segment {
-            &self.segments[0]
+        fn global_seg(&self) -> &vm::Segment {
+            &self.env.segments().iter().find(|s| s.is_global()).unwrap()
         }
 
         fn with(&mut self, ins: Ins) -> &mut Self {
@@ -264,8 +103,8 @@ pub mod compiler {
                 Ast::FuncDef(a, b, c) => self.compile_function(None, a, b, c, n.pos()),
                 Ast::Let(id, e0) => self.compile_let(id, e0, n.pos()),
                 Ast::Assign(op, reference, e0) => self.compile_assign(*op, reference, e0),
-                Ast::Call(f, args) => self.compile_call(self.seg().slots, f, args),
-                Ast::Return(e0) if self.seg().local() => self.compile_return(e0),
+                Ast::Call(f, args) => self.compile_call(self.seg().slots(), f, args),
+                Ast::Return(e0) if self.seg().is_local() => self.compile_return(e0),
                 Ast::Return(_) => Err(error::Error::invalid_return_position(n.pos())),
                 _ => unreachable!(),
             }
@@ -279,32 +118,29 @@ pub mod compiler {
             body: &AstNode,
             pos: io::Pos,
         ) -> Result<&mut Self, error::Error> {
-            let fid = self.segments.len();
-
-            self.segments.push(Segment {
-                parent: Some(self.current_segment),
-                global: false,
-                slots: Reg::try_from(args.len()).unwrap() + 1,
-                bytecode: vec![],
-                constants: vec![],
-                upvals: HashMap::new(),
-                name: name.clone().unwrap_or("<lambda>".to_string()),
-                symbols: args
-                    .iter()
+            let fid = self.env.new_seg(
+                name.clone().unwrap_or("<lambda>".to_string()),
+                false,
+                Reg::try_from(args.len()).unwrap() + 1,
+                vec![],
+                vec![],
+                args.iter()
                     .enumerate()
                     .map(|(i, v)| (v.to_string(), Reg::try_from(i).unwrap()))
                     .collect(),
-            });
+                HashMap::new(),
+                Some(self.curr_seg),
+            );
 
-            let old_segment = self.current_segment;
-            self.current_segment = fid;
+            let old_segment = self.curr_seg;
+            self.curr_seg = fid;
 
             self.compile_block(body)?;
             if !matches!(self.seg().ins().last(), Some(Ins::RetNone | Ins::Ret(_))) {
                 self.with(Ins::RetNone);
             }
 
-            self.current_segment = old_segment;
+            self.curr_seg = old_segment;
 
             let fr = match name {
                 None => Ok(r.unwrap()),
@@ -316,18 +152,18 @@ pub mod compiler {
 
             self.with(Ins::LoadF(fr, fid));
 
-            let func = &self.segments[fid];
-            if let uc @ 1.. = func.upvals.len() {
-                let r = r.map(|r| r + 1).unwrap_or(self.seg().spare_reg());
+            let r0 = r.map(|r| r + 1).unwrap_or(self.seg().spare_reg());
+            let func = self.env.get_segment_mut(fid);
 
-                func.upvals
+            if let uc @ 1.. = func.upvals().len() {
+                func.upvals_mut()
                     .clone()
                     .iter()
-                    .try_for_each(|(v0, i)| self.compile_id(r + i, v0, pos).map(|_| ()))?;
+                    .try_for_each(|(v0, i)| self.compile_id(r0 + i, v0, pos).map(|_| ()))?;
 
-                self.with(Ins::Close(fr, r, r + Reg::try_from(uc - 1).unwrap()));
-                self.seg_mut().slots =
-                    std::cmp::max(self.seg().slots, r + Reg::try_from(uc).unwrap());
+                self.with(Ins::Close(fr, r0, r0 + Reg::try_from(uc - 1).unwrap()))
+                    .seg_mut()
+                    .inc_slots(r0 + Reg::try_from(uc).unwrap())
             }
 
             Ok(self)
@@ -340,8 +176,8 @@ pub mod compiler {
             pos: io::Pos,
         ) -> Result<&mut Self, error::Error> {
             match self.seg_mut().new_symbol(id.to_string()) {
-                Some(r) if self.seg().local() => self.compile_expr(r, e0),
-                Some(r) => Ok(self.compile_expr(0, e0)?.with(Ins::SetG(r, 0))),
+                Some(r) if self.seg().is_local() => self.compile_expr(r, e0),
+                Some(r) => self.compile_expr(0, e0).map(|s| s.with(Ins::SetG(r, 0))),
                 None => Err(error::Error::duplicate_var_name(id.to_string(), pos)),
             }
         }
@@ -360,12 +196,12 @@ pub mod compiler {
             let r = self.seg().spare_reg();
             self.compile_expr(r, e0)?;
 
-            let global_reg = self.global_seg().symbols.get(id);
+            let global_reg = self.global_seg().locals().get(id);
             let local_reg = self
                 .seg()
-                .local()
+                .is_local()
                 .then(|| ())
-                .and_then(|_| self.seg().symbols.get(id));
+                .and_then(|_| self.seg().locals().get(id));
 
             match (global_reg, local_reg) {
                 (Some(&gr), None) if op == Op::Assign => Ok(self.with(Ins::SetG(gr, 0))),
@@ -380,13 +216,13 @@ pub mod compiler {
         }
 
         fn compile_return(&mut self, e0: &Option<Box<AstNode>>) -> Result<&mut Self, error::Error> {
-            Ok(match e0 {
-                None => self.with(Ins::RetNone),
+            match e0 {
+                None => Ok(self.with(Ins::RetNone)),
                 Some(e0) => {
                     let r = self.seg().spare_reg();
-                    self.compile_expr(r, e0)?.with(Ins::Ret(r))
+                    self.compile_expr(r, e0).map(|s| s.with(Ins::Ret(r)))
                 }
-            })
+            }
         }
 
         fn compile_while(&mut self, e0: &AstNode, b0: &AstNode) -> Result<&mut Self, error::Error> {
@@ -432,7 +268,7 @@ pub mod compiler {
         }
 
         fn compile_expr(&mut self, r: Reg, e: &AstNode) -> Result<&mut Self, error::Error> {
-            self.seg_mut().slots = std::cmp::max(self.seg().slots(), r + 1);
+            self.seg_mut().inc_slots(r + 1);
 
             match e.ast() {
                 Ast::Call(f, args) => self.compile_call(r, f, args),
@@ -535,12 +371,14 @@ pub mod compiler {
             op: lexer::Op,
             e0: &AstNode,
         ) -> Result<&mut Self, error::Error> {
-            Ok(self.compile_expr(r, e0)?.with(match op {
-                Op::Sub => Ins::Neg(r, r),
-                Op::Not => Ins::Not(r, r),
-                Op::BitNot => Ins::BitNot(r, r),
-                _ => unreachable!(),
-            }))
+            self.compile_expr(r, e0).map(|s| {
+                s.with(match op {
+                    Op::Sub => Ins::Neg(r, r),
+                    Op::Not => Ins::Not(r, r),
+                    Op::BitNot => Ins::BitNot(r, r),
+                    _ => unreachable!(),
+                })
+            })
         }
 
         fn compile_call(
@@ -550,7 +388,7 @@ pub mod compiler {
             args: &Vec<AstNode>,
         ) -> Result<&mut Self, error::Error> {
             let argc = args.len().try_into().unwrap();
-            self.seg_mut().slots = std::cmp::max(self.seg().slots(), r + argc);
+            self.seg_mut().inc_slots(r + argc);
             self.compile_expr(r, f)?;
 
             args.iter().enumerate().try_for_each(|(i, e)| {
@@ -587,7 +425,7 @@ pub mod compiler {
             id: &String,
             pos: io::Pos,
         ) -> Result<&mut Self, error::Error> {
-            match self.find_reference(self.current_segment, id) {
+            match self.find_reference(self.curr_seg, id) {
                 Some((r1, _, true)) => Ok(self.with(Ins::LoadG(r0, r1))),
                 Some((r1, true, _)) => Ok(self.with(Ins::LoadU(r0, r1))),
                 Some((r1, false, _)) => Ok(self.with(Ins::Move(r0, r1))),
@@ -596,23 +434,26 @@ pub mod compiler {
         }
 
         fn find_reference(&mut self, segment: usize, id: &String) -> Option<(Reg, bool, bool)> {
-            let seg = &self.segments[segment];
+            let seg = &self.env.get_segment(segment);
 
             if let Some(r) = seg.get_symbol(id) {
-                return Some((r, false, seg.global()));
+                return Some((r, false, seg.is_global()));
             }
 
             if let Some(r) = seg.get_upval(id) {
-                return Some((r, true, seg.global()));
+                return Some((r, true, seg.is_global()));
             }
 
-            seg.parent.and_then(|parent| {
+            seg.parent().and_then(|parent| {
                 self.find_reference(parent, id).map(|(r, _, global)| {
                     if global {
                         (r, false, true)
                     } else {
-                        let upval = self.segments[segment].new_upval(id.to_string()).unwrap();
-                        (upval, true, false)
+                        self.env
+                            .get_segment_mut(segment)
+                            .new_upval(id.to_string())
+                            .map(|u| (u, true, false))
+                            .unwrap()
                     }
                 })
             })

@@ -119,7 +119,7 @@ pub mod parser {
                 }
                 Ast::Assign(op, a, b) => {
                     writeln!(f, "{} {:#?}", "var-assignment".green(), op)?;
-                    a.print_tree(f, stem, level + 1, true)?;
+                    a.print_tree(f, stem, level + 1, false)?;
                     b.print_tree(f, stem, level + 1, true)
                 }
                 Ast::Return(a) => {
@@ -147,7 +147,7 @@ pub mod parser {
                     b.print_tree(f, stem, level + 1, true)
                 }
                 Ast::FuncDef(a, args, b) => {
-                    let v = a.clone().unwrap_or("<anonymous>".to_string());
+                    let v = a.clone().unwrap_or("<lambda>".to_string());
                     writeln!(f, "{} {}({})", "function".green(), v, args.join(", "))?;
                     b.print_tree(f, stem, level + 1, true)
                 }

@@ -165,7 +165,7 @@ pub mod error {
 
         pub fn duplicate_var_name(name: String, pos: io::Pos) -> Self {
             Self {
-                msg: format!("Variable has already been used in scope: '{}'", name),
+                msg: format!("Symbol name has already been used in scope: '{}'", name),
                 err_type: ErrorType::NameError(name, pos),
             }
         }
