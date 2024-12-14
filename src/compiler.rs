@@ -83,7 +83,7 @@ pub mod compiler {
         }
 
         pub fn compile(&mut self, tree: &parser::AstNode) -> Result<&mut Self, error::Error> {
-            self.compile_block(tree).map(|s| s.with(Ins::RetNone))
+            self.compile_block(tree)
         }
 
         fn compile_block(&mut self, n: &parser::AstNode) -> Result<&mut Self, error::Error> {
@@ -412,7 +412,9 @@ pub mod compiler {
                     self.with(Ins::LoadK(r, k))
                 }
                 Ast::String(s) => {
-                    let k = self.seg_mut().storek(vm::Value::String(s.to_string()));
+                    let k = self
+                        .seg_mut()
+                        .storek(vm::Value::String(Box::new(s.to_string())));
                     self.with(Ins::LoadK(r, k))
                 }
                 _ => unreachable!(),

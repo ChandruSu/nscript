@@ -18,15 +18,14 @@ fn main() {
     let mut parser = parser::Parser::new(&mut lexer);
 
     let ast = match parser.parse() {
-        Ok(ast) => {
-            println!("{}", ast);
-            ast
-        }
+        Ok(ast) => ast,
         Err(e) => {
             e.dump_error(&manager);
             return;
         }
     };
+
+    println!("{}", ast);
 
     let mut env = vm::Env::new();
     if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {

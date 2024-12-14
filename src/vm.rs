@@ -4,16 +4,19 @@ pub mod vm {
 
     use colored::Colorize;
 
-    use crate::compiler::compiler::{self, Reg};
+    use crate::{
+        compiler::compiler::{self, Ins, Reg},
+        utils::error,
+    };
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     pub enum Value {
         Null,
         Int(i32),
         Float(f32),
         Bool(bool),
         Func(u32, u16),
-        String(String),
+        String(Box<String>),
     }
 
     pub struct Segment {
@@ -29,11 +32,17 @@ pub mod vm {
 
     struct CallInfo {
         pc: usize,
+        sp: usize,
+        program: usize,
+        closure: usize,
     }
 
     pub struct Env {
         segments: Vec<Segment>,
-        call_stack: Vec<CallInfo>,
+        calls: Vec<CallInfo>,
+        registers: Vec<Value>,
+        globals: Vec<Value>,
+        closures: Vec<Vec<Value>>,
     }
 
     impl Segment {
@@ -177,7 +186,10 @@ pub mod vm {
     impl Env {
         pub fn new() -> Self {
             Self {
-                call_stack: vec![],
+                calls: vec![],
+                registers: vec![Value::Null; 1024],
+                globals: vec![Value::Null; 128],
+                closures: vec![vec![]],
                 segments: vec![Segment {
                     name: "__start".to_string(),
                     global: true,
@@ -229,6 +241,94 @@ pub mod vm {
 
         pub fn segments_mut(&mut self) -> &mut Vec<Segment> {
             &mut self.segments
+        }
+
+        pub fn execute(&mut self, program: usize) -> Result<(), error::Error> {
+            self.calls.push(CallInfo {
+                pc: 0,
+                sp: 0,
+                closure: 0,
+                program,
+            });
+
+            'next_call: while let Some(ci) = self.calls.pop() {
+                let pg = &self.segments[ci.program];
+                let registers = &mut self.registers[ci.sp..ci.sp + pg.slots as usize + 1];
+
+                while ci.pc < pg.bytecode.len() {
+                    match pg.bytecode[ci.pc] {
+                        Ins::Nop => continue,
+                        Ins::Neg(_, _) => todo!(),
+                        Ins::Not(_, _) => todo!(),
+                        Ins::Add(_, _, _) => todo!(),
+                        Ins::Sub(_, _, _) => todo!(),
+                        Ins::Mul(_, _, _) => todo!(),
+                        Ins::Div(_, _, _) => todo!(),
+                        Ins::Mod(_, _, _) => todo!(),
+                        Ins::Neq(_, _, _) => todo!(),
+                        Ins::Eq(_, _, _) => todo!(),
+                        Ins::Le(_, _, _) => todo!(),
+                        Ins::Lt(_, _, _) => todo!(),
+                        Ins::Shl(_, _, _) => todo!(),
+                        Ins::BitNot(_, _) => todo!(),
+                        Ins::BitOr(_, _, _) => todo!(),
+                        Ins::BitXor(_, _, _) => todo!(),
+                        Ins::BitAnd(_, _, _) => todo!(),
+                        Ins::SetG(a, b) => {
+                            self.globals[a as usize] = registers[b as usize].clone();
+                        }
+                        Ins::Move(a, b) => {
+                            registers[a as usize] = registers[b as usize].clone();
+                        }
+                        Ins::LoadN(a) => {
+                            registers[a as usize] = Value::Null;
+                        }
+                        Ins::LoadB(a, b) => {
+                            registers[a as usize] = Value::Bool(b);
+                        }
+                        Ins::LoadF(a, b) => {
+                            registers[a as usize] = Value::Func(b as u32, 0);
+                        }
+                        Ins::LoadG(a, b) => {
+                            registers[a as usize] = self.globals[b as usize].clone();
+                        }
+                        Ins::LoadU(a, b) => {
+                            registers[a as usize] = self.closures[ci.closure][b as usize].clone();
+                        }
+                        Ins::LoadK(a, b) => {
+                            registers[a as usize] = pg.constants[b as usize].clone();
+                        }
+                        Ins::JumpFalse(_, _) => todo!(),
+                        Ins::JumpTrue(_, _) => todo!(),
+                        Ins::Jump(_) => todo!(),
+                        Ins::Close(_, _, _) => todo!(),
+                        Ins::Call(a, b, c) => match registers[a as usize] {
+                            Value::Func(program, closure) => {
+                                let sp = ci.sp + pg.slots as usize;
+                                self.calls.push(ci);
+                                self.calls.push(CallInfo {
+                                    sp,
+                                    pc: 0,
+                                    program: program as usize,
+                                    closure: closure as usize,
+                                });
+                                continue 'next_call;
+                            }
+                            _ => todo!(),
+                        },
+                        Ins::Ret(a) => {
+                            self.registers[ci.sp - 1] = registers[a as usize].clone();
+                            continue 'next_call;
+                        }
+                        Ins::RetNone => {
+                            self.registers[ci.sp - 1] = Value::Null;
+                            continue 'next_call;
+                        }
+                    };
+                }
+            }
+
+            Ok(())
         }
     }
 }
