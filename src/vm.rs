@@ -1,11 +1,12 @@
 pub mod vm {
     use core::fmt;
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fmt::write, ops, usize};
 
     use colored::Colorize;
 
     use crate::{
         compiler::compiler::{self, Ins, Reg},
+        lexer::lexer,
         utils::error,
     };
 
@@ -35,6 +36,7 @@ pub mod vm {
         sp: usize,
         program: usize,
         closure: usize,
+        retloc: usize,
     }
 
     pub struct Env {
@@ -152,7 +154,7 @@ pub mod vm {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             writeln!(
                 f,
-                "{} {}(slots: {}, locals: {}, upvals: {}, consts: {}) {}\n{}{}\n{}\n",
+                "{} {}(slots: {}, locals: {}, upvals: {}, consts: {}) {}\n{}{}\n{}",
                 "function".green(),
                 self.name().cyan(),
                 self.slots(),
@@ -243,72 +245,135 @@ pub mod vm {
             &mut self.segments
         }
 
+        pub fn reg(&self, i: usize) -> &Value {
+            &self.registers[i]
+        }
+
+        pub fn reg_global(&self, i: usize) -> &Value {
+            &self.globals[i]
+        }
+
         pub fn execute(&mut self, program: usize) -> Result<(), error::Error> {
             self.calls.push(CallInfo {
                 pc: 0,
                 sp: 0,
                 closure: 0,
+                retloc: 0,
                 program,
             });
 
-            'next_call: while let Some(ci) = self.calls.pop() {
+            'next_call: while let Some(mut ci) = self.calls.pop() {
                 let pg = &self.segments[ci.program];
-                let registers = &mut self.registers[ci.sp..ci.sp + pg.slots as usize + 1];
+                let reg = &mut self.registers[ci.sp..ci.sp + pg.slots as usize + 1];
 
                 while ci.pc < pg.bytecode.len() {
                     match pg.bytecode[ci.pc] {
-                        Ins::Nop => continue,
-                        Ins::Neg(_, _) => todo!(),
-                        Ins::Not(_, _) => todo!(),
-                        Ins::Add(_, _, _) => todo!(),
-                        Ins::Sub(_, _, _) => todo!(),
-                        Ins::Mul(_, _, _) => todo!(),
-                        Ins::Div(_, _, _) => todo!(),
-                        Ins::Mod(_, _, _) => todo!(),
-                        Ins::Neq(_, _, _) => todo!(),
-                        Ins::Eq(_, _, _) => todo!(),
-                        Ins::Le(_, _, _) => todo!(),
-                        Ins::Lt(_, _, _) => todo!(),
-                        Ins::Shl(_, _, _) => todo!(),
-                        Ins::BitNot(_, _) => todo!(),
-                        Ins::BitOr(_, _, _) => todo!(),
-                        Ins::BitXor(_, _, _) => todo!(),
-                        Ins::BitAnd(_, _, _) => todo!(),
+                        Ins::Nop => {}
+                        Ins::Neg(a, b) => {
+                            reg[a as usize] = (-&reg[b as usize])?;
+                        }
+                        Ins::Not(a, b) => {
+                            reg[a as usize] = !&reg[b as usize];
+                        }
+                        Ins::BitNot(a, b) => reg[a as usize] = reg[b as usize].bit_flip()?,
+                        Ins::Add(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] + &reg[c as usize])?;
+                        }
+                        Ins::Sub(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] - &reg[c as usize])?;
+                        }
+                        Ins::Mul(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] * &reg[c as usize])?;
+                        }
+                        Ins::Div(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] / &reg[c as usize])?;
+                        }
+                        Ins::Mod(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] % &reg[c as usize])?;
+                        }
+                        Ins::Eq(a, b, c) => {
+                            reg[a as usize] = Value::Bool(reg[b as usize] == reg[c as usize])
+                        }
+                        Ins::Neq(a, b, c) => {
+                            reg[a as usize] = Value::Bool(reg[b as usize] != reg[c as usize])
+                        }
+                        Ins::Le(a, b, c) => {
+                            reg[a as usize] = Value::Bool(&reg[b as usize] <= &reg[c as usize])
+                        }
+                        Ins::Lt(a, b, c) => {
+                            reg[a as usize] = Value::Bool(&reg[b as usize] < &reg[c as usize])
+                        }
+                        Ins::Shl(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] << &reg[c as usize])?
+                        }
+                        Ins::BitAnd(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] & &reg[c as usize])?
+                        }
+                        Ins::BitOr(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] | &reg[c as usize])?
+                        }
+                        Ins::BitXor(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] ^ &reg[c as usize])?
+                        }
                         Ins::SetG(a, b) => {
-                            self.globals[a as usize] = registers[b as usize].clone();
+                            self.globals[a as usize] = reg[b as usize].clone();
                         }
                         Ins::Move(a, b) => {
-                            registers[a as usize] = registers[b as usize].clone();
+                            reg[a as usize] = reg[b as usize].clone();
                         }
                         Ins::LoadN(a) => {
-                            registers[a as usize] = Value::Null;
+                            reg[a as usize] = Value::Null;
                         }
                         Ins::LoadB(a, b) => {
-                            registers[a as usize] = Value::Bool(b);
+                            reg[a as usize] = Value::Bool(b);
                         }
                         Ins::LoadF(a, b) => {
-                            registers[a as usize] = Value::Func(b as u32, 0);
+                            reg[a as usize] = Value::Func(b as u32, 0);
                         }
                         Ins::LoadG(a, b) => {
-                            registers[a as usize] = self.globals[b as usize].clone();
+                            reg[a as usize] = self.globals[b as usize].clone();
                         }
                         Ins::LoadU(a, b) => {
-                            registers[a as usize] = self.closures[ci.closure][b as usize].clone();
+                            reg[a as usize] = self.closures[ci.closure][b as usize].clone();
                         }
                         Ins::LoadK(a, b) => {
-                            registers[a as usize] = pg.constants[b as usize].clone();
+                            reg[a as usize] = pg.constants[b as usize].clone();
                         }
-                        Ins::JumpFalse(_, _) => todo!(),
-                        Ins::JumpTrue(_, _) => todo!(),
-                        Ins::Jump(_) => todo!(),
-                        Ins::Close(_, _, _) => todo!(),
-                        Ins::Call(a, b, c) => match registers[a as usize] {
+                        Ins::JumpFalse(a, b) => {
+                            if !reg[a as usize].truthy() {
+                                ci.pc = b;
+                                continue;
+                            }
+                        }
+                        Ins::JumpTrue(a, b) => {
+                            if reg[a as usize].truthy() {
+                                ci.pc = b;
+                                continue;
+                            }
+                        }
+                        Ins::Jump(a) => {
+                            ci.pc = a;
+                            continue;
+                        }
+                        Ins::Close(a, b, c) => match reg[a as usize] {
+                            Value::Func(program, _) => {
+                                reg[a as usize] =
+                                    Value::Func(program, self.closures.len().try_into().unwrap());
+                                self.closures.push(reg[b as usize..c as usize].to_vec());
+                            }
+                            _ => todo!(),
+                        },
+                        Ins::Call(a, b, c) => match reg[b as usize] {
                             Value::Func(program, closure) => {
-                                let sp = ci.sp + pg.slots as usize;
+                                let sp = ci.sp + c as usize;
+                                let retloc = ci.sp + a as usize;
+                                ci.pc += 1;
+
                                 self.calls.push(ci);
                                 self.calls.push(CallInfo {
-                                    sp,
                                     pc: 0,
+                                    sp,
+                                    retloc,
                                     program: program as usize,
                                     closure: closure as usize,
                                 });
@@ -317,18 +382,191 @@ pub mod vm {
                             _ => todo!(),
                         },
                         Ins::Ret(a) => {
-                            self.registers[ci.sp - 1] = registers[a as usize].clone();
+                            self.registers[ci.retloc] = reg[a as usize].clone();
                             continue 'next_call;
                         }
                         Ins::RetNone => {
-                            self.registers[ci.sp - 1] = Value::Null;
+                            self.registers[ci.retloc] = Value::Null;
                             continue 'next_call;
                         }
                     };
+                    ci.pc += 1;
                 }
             }
-
             Ok(())
+        }
+    }
+
+    impl Value {
+        pub fn truthy(&self) -> bool {
+            match self {
+                Value::Null => false,
+                Value::Int(v) => *v != 0,
+                Value::Float(v) => *v != 0.0,
+                Value::Bool(v) => *v,
+                Value::Func(_, _) => true,
+                Value::String(v) => v.len() > 0,
+            }
+        }
+
+        pub fn type_name(&self) -> &'static str {
+            match self {
+                Value::Null => "Null",
+                Value::Int(_) => "Int",
+                Value::Float(_) => "Float",
+                Value::Bool(_) => "Boolean",
+                Value::Func(_, _) => "Function",
+                Value::String(_) => "String",
+            }
+        }
+
+        pub fn bit_flip(&self) -> Result<Self, error::Error> {
+            match self {
+                Value::Int(v) => Ok(Value::Int(!v)),
+                t0 => error::Error::op_type_mismatch_un(lexer::Op::BitNot, t0).err(),
+            }
+        }
+    }
+
+    impl ops::Add<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn add(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_add(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.add(*v0))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).add(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.add((*v1) as f32))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Add, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Sub<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn sub(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_sub(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.sub(*v0))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).sub(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.sub((*v1) as f32))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Sub, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Mul<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn mul(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_mul(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.mul(*v0))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).mul(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.mul((*v1) as f32))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Mul, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Rem<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn rem(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_rem(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.rem(*v0))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).rem(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f32))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Mod, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Div<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn div(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_div(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).div(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f32))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Div, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::BitAnd<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn bitand(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitand(*v1))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitAnd, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::BitOr<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn bitor(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitor(*v1))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitOr, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::BitXor<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn bitxor(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitxor(*v1))),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitXor, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Shl<&Value> for &Value {
+        type Output = Result<Value, error::Error>;
+        fn shl(self, rhs: &Value) -> Self::Output {
+            match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) if *v1 >= 0 => {
+                    Ok(Value::Int(v0.wrapping_shl(*v1 as u32)))
+                }
+                (Value::Int(_), Value::Int(v1)) => error::Error::negative_shift(*v1).err(),
+                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Shl, t0, t1).err(),
+            }
+        }
+    }
+
+    impl ops::Neg for &Value {
+        type Output = Result<Value, error::Error>;
+        fn neg(self) -> Self::Output {
+            match self {
+                Value::Int(i) => Ok(Value::Int(-*i)),
+                Value::Float(i) => Ok(Value::Float(-*i)),
+                t0 => error::Error::op_type_mismatch_un(lexer::Op::Sub, t0).err(),
+            }
+        }
+    }
+
+    impl ops::Not for &Value {
+        type Output = Value;
+        fn not(self) -> Self::Output {
+            Value::Bool(!self.truthy())
+        }
+    }
+
+    impl PartialOrd for &Value {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            match (self, other) {
+                (Value::Null, Value::Null) => Some(std::cmp::Ordering::Equal),
+                (Value::Int(v0), Value::Int(v1)) => v0.partial_cmp(v1),
+                (Value::Float(v0), Value::Float(v1)) => v0.partial_cmp(v1),
+                (Value::Bool(v0), Value::Bool(v1)) => v0.partial_cmp(v1),
+                (Value::String(v0), Value::String(v1)) => v0.partial_cmp(v1),
+                (Value::Func(f0, c0), Value::Func(f1, c1)) => {
+                    (f0 == f1 && c0 == c1).then_some(std::cmp::Ordering::Equal)
+                }
+                _ => None,
+            }
         }
     }
 }

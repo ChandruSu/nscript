@@ -36,4 +36,20 @@ fn main() {
     for (idx, program) in env.segments().iter().enumerate() {
         println!("[idx = {}]\n{:?}", idx, program);
     }
+
+    if let Err(e) = env.execute(0) {
+        e.dump_error(&manager);
+        return;
+    }
+
+    for i in 0..10 {
+        println!("G({}) = {:?}", i, env.reg_global(i));
+    }
+
+    println!();
+    for i in 0..16 {
+        println!("R({}) = {:?}", i, env.reg(i));
+    }
+
+    println!("Done");
 }

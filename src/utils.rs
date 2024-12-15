@@ -67,7 +67,7 @@ pub mod io {
 
 pub mod error {
 
-    use crate::lexer::lexer;
+    use crate::{lexer::lexer, vm::vm};
 
     use super::io;
 
@@ -76,6 +76,8 @@ pub mod error {
         NameError(String, io::Pos),
         SyntaxError(io::Pos),
         CompilerError(io::Pos),
+        TypeError(&'static str),
+        ArithmeticError(vm::Value),
     }
 
     pub struct Error {
@@ -84,6 +86,10 @@ pub mod error {
     }
 
     impl Error {
+        pub fn err<O>(self) -> Result<O, Self> {
+            Err(self)
+        }
+
         pub fn invalid_token_char(c: char, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Invalid token reached starting with {}", c),
@@ -125,7 +131,7 @@ pub mod error {
         pub fn non_unary_op(op: lexer::Op, pos: io::Pos) -> Self {
             Self {
                 msg: format!(
-                    "Incorrect operator found: '{:?}', expected valid unary operator",
+                    "Incorrect operator found: '{}', expected valid unary operator",
                     op
                 ),
                 err_type: ErrorType::SyntaxError(pos),
@@ -135,7 +141,7 @@ pub mod error {
         pub fn non_assign_op(op: lexer::Op, pos: io::Pos) -> Self {
             Self {
                 msg: format!(
-                    "Incorrect operator found: '{:?}', expected valid assignment operator",
+                    "Incorrect operator found: '{}', expected valid assignment operator",
                     op
                 ),
                 err_type: ErrorType::SyntaxError(pos),
@@ -180,6 +186,32 @@ pub mod error {
             }
         }
 
+        pub fn op_type_mismatch_un(op: lexer::Op, t0: &vm::Value) -> Self {
+            Self {
+                msg: format!("Cannot apply operation '{}' to type {}", op, t0.type_name(),),
+                err_type: ErrorType::TypeError(t0.type_name()),
+            }
+        }
+
+        pub fn op_type_mismatch(op: lexer::Op, t0: &vm::Value, t1: &vm::Value) -> Self {
+            Self {
+                msg: format!(
+                    "Cannot apply operation '{}' between types {} and {}",
+                    op,
+                    t0.type_name(),
+                    t1.type_name()
+                ),
+                err_type: ErrorType::TypeError(t0.type_name()),
+            }
+        }
+
+        pub fn negative_shift(v: i32) -> Self {
+            Self {
+                msg: format!("Cannot apply bitwise shift operation using a signed integer",),
+                err_type: ErrorType::ArithmeticError(vm::Value::Int(v)),
+            }
+        }
+
         pub fn dump_error(&self, sources: &io::SourceManager) {
             match &self.err_type {
                 ErrorType::IOError => {
@@ -211,6 +243,13 @@ pub mod error {
                         pos.line + 1,
                         pos.column + 1
                     )
+                }
+                ErrorType::TypeError(_) => {
+                    eprintln!("TYPE ERROR: {}", self.msg,)
+                }
+
+                ErrorType::ArithmeticError(v) => {
+                    eprintln!("ARITHMETIC ERROR: {}, Value: {:?}", self.msg, v)
                 }
             }
         }

@@ -1,12 +1,10 @@
 
-fun mul(a) {
-    while a % 17 > 0 {
-        a += 1;
+fun fact(n) {
+    if n <= 1 {
+        return 1;
+    } else {
+        return n * fact(n - 1);
     }
-
-    return fun (x) {
-        return a * x;
-    };
 }
 
-let dub3 = mul(2)(3);
+let x = fact(7);

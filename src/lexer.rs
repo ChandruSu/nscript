@@ -1,4 +1,5 @@
 pub mod lexer {
+    use core::fmt;
     use std::str::Chars;
 
     use crate::utils::{error, io};
@@ -241,7 +242,7 @@ pub mod lexer {
                     ('&', _) => Tk::Operator(Op::BitAnd),
                     ('~', _) => Tk::Operator(Op::BitNot),
                     ('=', _) => Tk::Operator(Op::Assign),
-                    _ => return Err(error::Error::invalid_token_char(c, pos)),
+                    _ => return error::Error::invalid_token_char(c, pos).err(),
                 },
             };
 
@@ -321,7 +322,7 @@ pub mod lexer {
     }
 
     impl Op {
-        pub fn precedence(self) -> u8 {
+        pub fn precedence(&self) -> u8 {
             match self {
                 Op::Or => 10,
                 Op::And => 9,
@@ -336,6 +337,43 @@ pub mod lexer {
                 Op::Not | Op::BitNot => 0,
                 _ => MAX_OP_PRECEDENCE,
             }
+        }
+
+        pub fn op_str(&self) -> &'static str {
+            match self {
+                Op::Add => "+",
+                Op::Sub => "-",
+                Op::Mul => "*",
+                Op::Div => "/",
+                Op::Mod => "%",
+                Op::Eq => "==",
+                Op::Neq => "!=",
+                Op::Le => "<=",
+                Op::Ge => ">=",
+                Op::Lt => "<",
+                Op::Gt => ">",
+                Op::Or => "||",
+                Op::And => "&&",
+                Op::Not => "!",
+                Op::Shr => ">>",
+                Op::Shl => "<<",
+                Op::Assign => "=",
+                Op::AddEq => "+=",
+                Op::SubEq => "-=",
+                Op::MulEq => "*=",
+                Op::DivEq => "/=",
+                Op::ModEq => "%=",
+                Op::BitOr => "|",
+                Op::BitXor => "^",
+                Op::BitAnd => "&",
+                Op::BitNot => "~",
+            }
+        }
+    }
+
+    impl fmt::Display for Op {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.op_str())
         }
     }
 }

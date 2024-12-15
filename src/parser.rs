@@ -118,7 +118,7 @@ pub mod parser {
                     b.print_tree(f, stem, level + 1, true)
                 }
                 Ast::Assign(op, a, b) => {
-                    writeln!(f, "{} {:#?}", "var-assignment".green(), op)?;
+                    writeln!(f, "{} {:?}", "var-assignment".green(), op)?;
                     a.print_tree(f, stem, level + 1, false)?;
                     b.print_tree(f, stem, level + 1, true)
                 }
@@ -212,7 +212,7 @@ pub mod parser {
             if head.tk == tk {
                 self.consume()
             } else {
-                Err(error::Error::unexpected_token(&head.tk, &tk, head.pos))
+                error::Error::unexpected_token(&head.tk, &tk, head.pos).err()
             }
         }
 
@@ -222,7 +222,7 @@ pub mod parser {
             if let Tk::Id(id) = &head.tk {
                 Ok(id)
             } else {
-                Err(error::Error::id_expected(head.pos))
+                error::Error::id_expected(head.pos).err()
             }
         }
 
@@ -267,9 +267,9 @@ pub mod parser {
                         let f = self.parse_reference()?;
                         self.expect(Tk::Semi).map(|_| f)
                     }
-                    tk => Err(error::Error::unexpected_token_any(tk, self.lookahead().pos)),
+                    tk => error::Error::unexpected_token_any(tk, self.lookahead().pos).err(),
                 },
-                tk => Err(error::Error::unexpected_token_any(tk, self.head().pos)),
+                tk => error::Error::unexpected_token_any(tk, self.head().pos).err(),
             }
         }
 
@@ -300,8 +300,8 @@ pub mod parser {
                 Tk::Operator(
                     op @ (Op::Assign | Op::AddEq | Op::SubEq | Op::MulEq | Op::ModEq | Op::DivEq),
                 ) => Ok(*op),
-                Tk::Operator(op) => Err(error::Error::non_assign_op(*op, self.head().pos)),
-                tk => Err(error::Error::unexpected_token_any(tk, pos)),
+                Tk::Operator(op) => error::Error::non_assign_op(*op, self.head().pos).err(),
+                tk => error::Error::unexpected_token_any(tk, pos).err(),
             }?;
 
             let e = Box::new(self.parse_expression()?);
@@ -330,7 +330,7 @@ pub mod parser {
             match &self.head().tk {
                 Tk::If => self.parse_if_stmt(),
                 Tk::LeftBrace => self.parse_scoped_block(),
-                tk => Err(error::Error::unexpected_token_any(tk, self.head().pos)),
+                tk => error::Error::unexpected_token_any(tk, self.head().pos).err(),
             }
         }
 
@@ -418,7 +418,7 @@ pub mod parser {
                     self.consume()?;
                     self.parse_unary()
                 }
-                Tk::Operator(op) => Err(error::Error::non_unary_op(op, self.head().pos)),
+                Tk::Operator(op) => error::Error::non_unary_op(op, self.head().pos).err(),
                 _ => self.parse_term(),
             }
         }
@@ -439,7 +439,7 @@ pub mod parser {
                     self.expect(Tk::RightParen)?;
                     Ok(node)
                 }
-                tk => Err(error::Error::unexpected_token_any(tk, self.head().pos)),
+                tk => error::Error::unexpected_token_any(tk, self.head().pos).err(),
             }
         }
 

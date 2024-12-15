@@ -92,7 +92,7 @@ pub mod compiler {
                     .iter()
                     .try_for_each(|n| self.compile_statement(n).map(|_| ()))
                     .map(|_| self),
-                _ => Err(error::Error::invalid_ast_node(n.pos())),
+                _ => error::Error::invalid_ast_node(n.pos()).err(),
             }
         }
 
@@ -105,7 +105,7 @@ pub mod compiler {
                 Ast::Assign(op, reference, e0) => self.compile_assign(*op, reference, e0),
                 Ast::Call(f, args) => self.compile_call(self.seg().slots(), f, args),
                 Ast::Return(e0) if self.seg().is_local() => self.compile_return(e0),
-                Ast::Return(_) => Err(error::Error::invalid_return_position(n.pos())),
+                Ast::Return(_) => error::Error::invalid_return_position(n.pos()).err(),
                 _ => unreachable!(),
             }
         }
@@ -132,6 +132,14 @@ pub mod compiler {
                 Some(self.curr_seg),
             );
 
+            let fr = match name {
+                None => Ok(r.unwrap()),
+                Some(name) => self
+                    .seg_mut()
+                    .new_symbol(name.to_string())
+                    .ok_or_else(|| error::Error::duplicate_var_name(name.to_string(), pos)),
+            }?;
+
             let old_segment = self.curr_seg;
             self.curr_seg = fid;
 
@@ -142,28 +150,26 @@ pub mod compiler {
 
             self.curr_seg = old_segment;
 
-            let fr = match name {
-                None => Ok(r.unwrap()),
-                Some(name) => self
-                    .seg_mut()
-                    .new_symbol(name.to_string())
-                    .ok_or_else(|| error::Error::duplicate_var_name(name.to_string(), pos)),
-            }?;
-
             self.with(Ins::LoadF(fr, fid));
 
-            let r0 = r.map(|r| r + 1).unwrap_or(self.seg().spare_reg());
-            let func = self.env.get_segment_mut(fid);
+            let r0 = r.map(|r| r + 1).unwrap_or(
+                self.seg().is_global().then_some(1).unwrap_or(0) + self.seg().spare_reg(),
+            );
 
+            let func = self.env.get_segment_mut(fid);
             if let uc @ 1.. = func.upvals().len() {
                 func.upvals_mut()
                     .clone()
                     .iter()
                     .try_for_each(|(v0, i)| self.compile_id(r0 + i, v0, pos).map(|_| ()))?;
 
-                self.with(Ins::Close(fr, r0, r0 + Reg::try_from(uc - 1).unwrap()))
+                self.with(Ins::Close(fr, r0, r0 + Reg::try_from(uc).unwrap()))
                     .seg_mut()
                     .inc_slots(r0 + Reg::try_from(uc).unwrap())
+            }
+
+            if self.seg().is_global() && matches!(name, Some(_)) {
+                self.with(Ins::SetG(fr, 0));
             }
 
             Ok(self)
@@ -178,7 +184,7 @@ pub mod compiler {
             match self.seg_mut().new_symbol(id.to_string()) {
                 Some(r) if self.seg().is_local() => self.compile_expr(r, e0),
                 Some(r) => self.compile_expr(0, e0).map(|s| s.with(Ins::SetG(r, 0))),
-                None => Err(error::Error::duplicate_var_name(id.to_string(), pos)),
+                None => error::Error::duplicate_var_name(id.to_string(), pos).err(),
             }
         }
 
@@ -190,7 +196,7 @@ pub mod compiler {
         ) -> Result<&mut Self, error::Error> {
             let id = match v.ast() {
                 Ast::Reference(id) => Ok(id),
-                _ => Err(error::Error::invalid_ast_node(v.pos())),
+                _ => error::Error::invalid_ast_node(v.pos()).err(),
             }?;
 
             let r = self.seg().spare_reg();
@@ -211,7 +217,7 @@ pub mod compiler {
                     .with(Ins::LoadG(r + 1, gr))
                     .with(op.to_ins(r, r + 1, r))
                     .with(Ins::SetG(gr, r))),
-                (None, None) => Err(error::Error::mutate_closure(id.to_string(), v.pos())),
+                (None, None) => error::Error::mutate_closure(id.to_string(), v.pos()).err(),
             }
         }
 
@@ -229,7 +235,7 @@ pub mod compiler {
             let r = self.seg().spare_reg();
             let jmp0 = self.seg().count();
             let jmp1 = self.compile_expr(r, e0)?.seg().count();
-            let jmp2 = self.with(Ins::Nop).compile_block(b0)?.seg().count();
+            let jmp2 = self.with(Ins::Nop).compile_block(b0)?.seg().count() + 1;
 
             Ok(self
                 .set_ins(jmp1, Ins::JumpFalse(r, jmp2))
@@ -252,9 +258,7 @@ pub mod compiler {
                 Some(_) => self.with(Ins::Nop).seg().count() - 1,
             };
 
-            self.set_ins(jmp0, Ins::JumpFalse(r, self.seg().count() - 1));
-
-            let len = self.seg().count() - 1;
+            self.set_ins(jmp0, Ins::JumpFalse(r, self.seg().count()));
 
             Ok(match b1 {
                 None => self,
@@ -263,7 +267,7 @@ pub mod compiler {
                     Ast::If(a, b, c) => self.compile_if(a, b, c),
                     _ => unreachable!(),
                 }?
-                .set_ins(jmp1, Ins::Jump(len)),
+                .set_ins_with_count(jmp1, &|c| Ins::Jump(c)),
             })
         }
 
@@ -303,13 +307,15 @@ pub mod compiler {
             let jmp1 = self
                 .with(Ins::Nop)
                 .compile_expr(r, e1)?
-                .set_ins_with_count(jmp0, &|c| Ins::JumpFalse(r, c))
+                .set_ins_with_count(jmp0, &|c| Ins::JumpFalse(r, c + 1))
                 .seg()
                 .count();
 
             self.with(Ins::Nop)
-                .set_ins_with_count(jmp1, &|c| Ins::Jump(c))
-                .compile_expr(r, e2)
+                .compile_expr(r, e2)?
+                .set_ins_with_count(jmp1, &|c| Ins::Jump(c));
+
+            Ok(self)
         }
 
         fn compile_bin_expr(
@@ -341,8 +347,8 @@ pub mod compiler {
             self.set_ins(
                 jmp,
                 match op {
-                    Op::Or => Ins::JumpFalse(r, self.seg().count() - 1),
-                    Op::And => Ins::JumpTrue(r, self.seg().count() - 1),
+                    Op::Or => Ins::JumpFalse(r, self.seg().count()),
+                    Op::And => Ins::JumpTrue(r, self.seg().count()),
                     _ => unreachable!(),
                 },
             );
@@ -387,7 +393,7 @@ pub mod compiler {
             f: &AstNode,
             args: &Vec<AstNode>,
         ) -> Result<&mut Self, error::Error> {
-            let argc = args.len().try_into().unwrap();
+            let argc = Reg::try_from(args.len()).unwrap();
             self.seg_mut().inc_slots(r + argc);
             self.compile_expr(r, f)?;
 
@@ -396,7 +402,7 @@ pub mod compiler {
                     .map(|_| ())
             })?;
 
-            Ok(self.with(Ins::Call(r, r, argc)))
+            Ok(self.with(Ins::Call(r, r, r + 1)))
         }
 
         fn compile_literal(&mut self, r: Reg, l: &AstNode) -> Result<&mut Self, error::Error> {
@@ -431,7 +437,7 @@ pub mod compiler {
                 Some((r1, _, true)) => Ok(self.with(Ins::LoadG(r0, r1))),
                 Some((r1, true, _)) => Ok(self.with(Ins::LoadU(r0, r1))),
                 Some((r1, false, _)) => Ok(self.with(Ins::Move(r0, r1))),
-                None => Err(error::Error::unknown_var_name(id.to_string(), pos)),
+                None => error::Error::unknown_var_name(id.to_string(), pos).err(),
             }
         }
 
@@ -473,9 +479,9 @@ pub mod compiler {
                 Op::Eq => Ins::Eq(r0, r1, r2),
                 Op::Neq => Ins::Neq(r0, r1, r2),
                 Op::Le => Ins::Le(r0, r1, r2),
-                Op::Ge => Ins::Lt(r0, r2, r1),
+                Op::Ge => Ins::Le(r0, r2, r1),
                 Op::Lt => Ins::Lt(r0, r1, r2),
-                Op::Gt => Ins::Le(r0, r2, r1),
+                Op::Gt => Ins::Lt(r0, r2, r1),
                 Op::Shr => Ins::Shl(r0, r2, r1),
                 Op::Shl => Ins::Shl(r0, r1, r2),
                 Op::BitOr => Ins::BitOr(r0, r1, r2),
