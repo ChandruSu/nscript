@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ns::compiler::compiler;
 use ns::lexer::lexer::{self};
 use ns::parser::parser;
@@ -37,10 +39,12 @@ fn main() {
         println!("[idx = {}]\n{:?}", idx, program);
     }
 
+    let start = Instant::now();
     if let Err(e) = env.execute(0) {
         e.dump_error(&manager);
         return;
     }
+    println!("Execution took: {}ms", start.elapsed().as_millis());
 
     for i in 0..10 {
         println!("G({}) = {:?}", i, env.reg_global(i));

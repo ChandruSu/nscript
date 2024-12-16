@@ -1,6 +1,6 @@
 pub mod vm {
     use core::fmt;
-    use std::{collections::HashMap, fmt::write, ops, usize};
+    use std::{collections::HashMap, ops, usize};
 
     use colored::Colorize;
 
@@ -104,7 +104,7 @@ pub mod vm {
             if self.is_global() {
                 0
             } else {
-                self.slots - 1
+                self.symbols.len() as Reg
             }
         }
 
@@ -114,6 +114,7 @@ pub mod vm {
             } else {
                 let location = Reg::try_from(self.symbols.len()).unwrap();
                 self.symbols.insert(id, location);
+                self.slots += 1;
                 Some(location)
             }
         }

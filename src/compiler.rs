@@ -150,7 +150,11 @@ pub mod compiler {
 
             self.curr_seg = old_segment;
 
-            self.with(Ins::LoadF(fr, fid));
+            if self.seg().is_global() {
+                self.with(Ins::LoadF(0, fid));
+            } else {
+                self.with(Ins::LoadF(fr, fid));
+            }
 
             let r0 = r.map(|r| r + 1).unwrap_or(
                 self.seg().is_global().then_some(1).unwrap_or(0) + self.seg().spare_reg(),
