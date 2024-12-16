@@ -66,16 +66,15 @@ pub mod io {
 }
 
 pub mod error {
-
     use crate::{lexer::lexer, vm::vm};
 
     use super::io;
 
     pub enum ErrorType {
         IOError,
-        NameError(String, io::Pos),
-        SyntaxError(io::Pos),
-        CompilerError(io::Pos),
+        NameError(String),
+        SyntaxError,
+        CompilerError,
         TypeError(&'static str),
         ArithmeticError(vm::Value),
     }
@@ -83,6 +82,7 @@ pub mod error {
     pub struct Error {
         pub msg: String,
         pub err_type: ErrorType,
+        pub pos: Option<io::Pos>,
     }
 
     impl Error {
@@ -90,10 +90,19 @@ pub mod error {
             Err(self)
         }
 
+        pub fn with_pos(self, pos: Option<&io::Pos>) -> Self {
+            Self {
+                err_type: self.err_type,
+                msg: self.msg,
+                pos: pos.cloned(),
+            }
+        }
+
         pub fn invalid_token_char(c: char, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Invalid token reached starting with {}", c),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
@@ -103,21 +112,24 @@ pub mod error {
                     "Unexpected token reached: '{:?}', expected '{:?}'",
                     tk0, tk1
                 ),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
         pub fn unexpected_token_any(tk0: &lexer::Tk, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Unexpected token reached: '{:?}'", tk0),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
         pub fn id_expected(pos: io::Pos) -> Self {
             Self {
                 msg: format!("Unexpected token, identifier or symbol expected"),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
@@ -125,6 +137,7 @@ pub mod error {
             Self {
                 msg: format!("Cannot read file: '{}'", file_path),
                 err_type: ErrorType::IOError,
+                pos: None,
             }
         }
 
@@ -134,7 +147,8 @@ pub mod error {
                     "Incorrect operator found: '{}', expected valid unary operator",
                     op
                 ),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
@@ -144,35 +158,40 @@ pub mod error {
                     "Incorrect operator found: '{}', expected valid assignment operator",
                     op
                 ),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
         pub fn invalid_ast_node(pos: io::Pos) -> Self {
             Self {
                 msg: format!("Unexpected AST node at this position - cannot be compiled"),
-                err_type: ErrorType::CompilerError(pos),
+                err_type: ErrorType::CompilerError,
+                pos: Some(pos),
             }
         }
 
         pub fn invalid_return_position(pos: io::Pos) -> Self {
             Self {
                 msg: format!("Return statement from invalid position"),
-                err_type: ErrorType::SyntaxError(pos),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
             }
         }
 
         pub fn unknown_var_name(name: String, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Unknown variable referenced: '{}'", name),
-                err_type: ErrorType::NameError(name, pos),
+                err_type: ErrorType::NameError(name),
+                pos: Some(pos),
             }
         }
 
         pub fn duplicate_var_name(name: String, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Symbol name has already been used in scope: '{}'", name),
-                err_type: ErrorType::NameError(name, pos),
+                err_type: ErrorType::NameError(name),
+                pos: Some(pos),
             }
         }
 
@@ -182,7 +201,8 @@ pub mod error {
                     "Variable is not in accessible scope and cannot be mutated: '{}'",
                     name
                 ),
-                err_type: ErrorType::NameError(name, pos),
+                err_type: ErrorType::NameError(name),
+                pos: Some(pos),
             }
         }
 
@@ -190,6 +210,7 @@ pub mod error {
             Self {
                 msg: format!("Cannot apply operation '{}' to type {}", op, t0.type_name(),),
                 err_type: ErrorType::TypeError(t0.type_name()),
+                pos: None,
             }
         }
 
@@ -202,6 +223,7 @@ pub mod error {
                     t1.type_name()
                 ),
                 err_type: ErrorType::TypeError(t0.type_name()),
+                pos: None,
             }
         }
 
@@ -209,6 +231,15 @@ pub mod error {
             Self {
                 msg: format!("Cannot apply bitwise shift operation using a signed integer",),
                 err_type: ErrorType::ArithmeticError(vm::Value::Int(v)),
+                pos: None,
+            }
+        }
+
+        pub fn uncallable_type(t0: &vm::Value) -> Self {
+            Self {
+                msg: format!("Cannot call non-function value of type {}", t0.type_name()),
+                err_type: ErrorType::TypeError(t0.type_name()),
+                pos: None,
             }
         }
 
@@ -217,39 +248,61 @@ pub mod error {
                 ErrorType::IOError => {
                     eprintln!("IO ERROR: {}", self.msg)
                 }
-                ErrorType::CompilerError(pos) => {
-                    eprintln!(
-                        "COMPILER ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
+                ErrorType::CompilerError => {
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "COMPILER ERROR: {} at {}:{}:{}",
+                            self.msg,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
                 }
-                ErrorType::SyntaxError(pos) => {
-                    eprintln!(
-                        "SYNTAX ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
+                ErrorType::SyntaxError => {
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "SYNTAX ERROR: {} at {}:{}:{}",
+                            self.msg,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
                 }
-                ErrorType::NameError(_, pos) => {
-                    eprintln!(
-                        "NAME ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
+                ErrorType::NameError(_) => {
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "NAME ERROR: {} at {}:{}:{}",
+                            self.msg,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
                 }
                 ErrorType::TypeError(_) => {
-                    eprintln!("TYPE ERROR: {}", self.msg,)
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "TYPE ERROR: {} at {}:{}:{}",
+                            self.msg,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
                 }
-
                 ErrorType::ArithmeticError(v) => {
-                    eprintln!("ARITHMETIC ERROR: {}, Value: {:?}", self.msg, v)
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "ARITHMETIC ERROR: {}, Value: {:?} at {}:{}:{}",
+                            self.msg,
+                            v,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
                 }
             }
         }

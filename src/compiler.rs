@@ -5,7 +5,10 @@ pub mod compiler {
         utils::{error, io},
         vm::vm,
     };
-    use std::{collections::HashMap, vec};
+    use std::{
+        collections::{BTreeMap, HashMap},
+        vec,
+    };
 
     pub type Reg = u16;
 
@@ -97,6 +100,7 @@ pub mod compiler {
         }
 
         fn compile_statement(&mut self, n: &parser::AstNode) -> Result<&mut Self, error::Error> {
+            self.seg_mut().push_pos(n.pos());
             match n.ast() {
                 Ast::If(e0, b0, b1) => self.compile_if(e0, b0, b1),
                 Ast::While(e0, b0) => self.compile_while(e0, b0),
@@ -129,6 +133,7 @@ pub mod compiler {
                     .map(|(i, v)| (v.to_string(), Reg::try_from(i).unwrap()))
                     .collect(),
                 HashMap::new(),
+                BTreeMap::new(),
                 Some(self.curr_seg),
             );
 

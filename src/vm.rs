@@ -1,13 +1,16 @@
 pub mod vm {
     use core::fmt;
-    use std::{collections::HashMap, ops, usize};
+    use std::{
+        collections::{BTreeMap, HashMap},
+        ops, usize,
+    };
 
     use colored::Colorize;
 
     use crate::{
         compiler::compiler::{self, Ins, Reg},
         lexer::lexer,
-        utils::error,
+        utils::{error, io},
     };
 
     #[derive(PartialEq, Debug, Clone)]
@@ -29,6 +32,7 @@ pub mod vm {
         symbols: HashMap<String, Reg>,
         upvals: HashMap<String, Reg>,
         parent: Option<usize>,
+        positions: BTreeMap<usize, io::Pos>,
     }
 
     struct CallInfo {
@@ -149,6 +153,17 @@ pub mod vm {
             )
             .unwrap()
         }
+
+        pub fn push_pos(&mut self, pos: io::Pos) {
+            self.positions.insert(self.count(), pos);
+        }
+
+        pub fn get_pos(&self, instruction_addr: usize) -> Option<&io::Pos> {
+            self.positions
+                .range(..instruction_addr + 1)
+                .next_back()
+                .map(|(_, v)| v)
+        }
     }
 
     impl fmt::Debug for Segment {
@@ -201,6 +216,7 @@ pub mod vm {
                     constants: vec![],
                     upvals: HashMap::new(),
                     symbols: HashMap::new(),
+                    positions: BTreeMap::new(),
                     parent: None,
                 }],
             }
@@ -215,6 +231,7 @@ pub mod vm {
             constants: Vec<Value>,
             symbols: HashMap<String, Reg>,
             upvals: HashMap<String, Reg>,
+            positions: BTreeMap<usize, io::Pos>,
             parent: Option<usize>,
         ) -> usize {
             self.segments.push(Segment {
@@ -225,6 +242,7 @@ pub mod vm {
                 constants,
                 upvals,
                 symbols,
+                positions,
                 parent,
             });
             self.segments.len() - 1
@@ -270,27 +288,17 @@ pub mod vm {
                 while ci.pc < pg.bytecode.len() {
                     match pg.bytecode[ci.pc] {
                         Ins::Nop => {}
-                        Ins::Neg(a, b) => {
-                            reg[a as usize] = (-&reg[b as usize])?;
-                        }
                         Ins::Not(a, b) => {
-                            reg[a as usize] = !&reg[b as usize];
+                            reg[a as usize] = Value::Bool(!reg[b as usize].truthy());
                         }
-                        Ins::BitNot(a, b) => reg[a as usize] = reg[b as usize].bit_flip()?,
-                        Ins::Add(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] + &reg[c as usize])?;
+                        Ins::Neg(a, b) => {
+                            reg[a as usize] =
+                                (-&reg[b as usize]).map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?
                         }
-                        Ins::Sub(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] - &reg[c as usize])?;
-                        }
-                        Ins::Mul(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] * &reg[c as usize])?;
-                        }
-                        Ins::Div(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] / &reg[c as usize])?;
-                        }
-                        Ins::Mod(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] % &reg[c as usize])?;
+                        Ins::BitNot(a, b) => {
+                            reg[a as usize] = reg[b as usize]
+                                .bit_flip()
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?
                         }
                         Ins::Eq(a, b, c) => {
                             reg[a as usize] = Value::Bool(reg[b as usize] == reg[c as usize])
@@ -304,17 +312,41 @@ pub mod vm {
                         Ins::Lt(a, b, c) => {
                             reg[a as usize] = Value::Bool(&reg[b as usize] < &reg[c as usize])
                         }
+                        Ins::Add(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] + &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                        }
+                        Ins::Sub(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] - &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                        }
+                        Ins::Mul(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] * &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                        }
+                        Ins::Div(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] / &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                        }
+                        Ins::Mod(a, b, c) => {
+                            reg[a as usize] = (&reg[b as usize] % &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                        }
                         Ins::Shl(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] << &reg[c as usize])?
+                            reg[a as usize] = (&reg[b as usize] << &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
                         }
                         Ins::BitAnd(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] & &reg[c as usize])?
+                            reg[a as usize] = (&reg[b as usize] & &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
                         }
                         Ins::BitOr(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] | &reg[c as usize])?
+                            reg[a as usize] = (&reg[b as usize] | &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
                         }
                         Ins::BitXor(a, b, c) => {
-                            reg[a as usize] = (&reg[b as usize] ^ &reg[c as usize])?
+                            reg[a as usize] = (&reg[b as usize] ^ &reg[c as usize])
+                                .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
                         }
                         Ins::SetG(a, b) => {
                             self.globals[a as usize] = reg[b as usize].clone();
@@ -356,15 +388,17 @@ pub mod vm {
                             ci.pc = a;
                             continue;
                         }
-                        Ins::Close(a, b, c) => match reg[a as usize] {
+                        Ins::Close(a, b, c) => match &reg[a as usize] {
                             Value::Func(program, _) => {
                                 reg[a as usize] =
-                                    Value::Func(program, self.closures.len().try_into().unwrap());
+                                    Value::Func(*program, self.closures.len().try_into().unwrap());
                                 self.closures.push(reg[b as usize..c as usize].to_vec());
                             }
-                            _ => todo!(),
+                            t0 => error::Error::uncallable_type(t0)
+                                .with_pos(pg.get_pos(ci.pc))
+                                .err()?,
                         },
-                        Ins::Call(a, b, c) => match reg[b as usize] {
+                        Ins::Call(a, b, c) => match &reg[b as usize] {
                             Value::Func(program, closure) => {
                                 let sp = ci.sp + c as usize;
                                 let retloc = ci.sp + a as usize;
@@ -375,12 +409,14 @@ pub mod vm {
                                     pc: 0,
                                     sp,
                                     retloc,
-                                    program: program as usize,
-                                    closure: closure as usize,
+                                    program: *program as usize,
+                                    closure: *closure as usize,
                                 });
                                 continue 'next_call;
                             }
-                            _ => todo!(),
+                            t0 => error::Error::uncallable_type(t0)
+                                .with_pos(pg.get_pos(ci.pc))
+                                .err()?,
                         },
                         Ins::Ret(a) => {
                             self.registers[ci.retloc] = reg[a as usize].clone();
@@ -545,13 +581,6 @@ pub mod vm {
                 Value::Float(i) => Ok(Value::Float(-*i)),
                 t0 => error::Error::op_type_mismatch_un(lexer::Op::Sub, t0).err(),
             }
-        }
-    }
-
-    impl ops::Not for &Value {
-        type Output = Value;
-        fn not(self) -> Self::Output {
-            Value::Bool(!self.truthy())
         }
     }
 
