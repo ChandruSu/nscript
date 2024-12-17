@@ -1,0 +1,6 @@
+
+fun test() {
+    return "a" + "b";
+}
+
+let x = test();

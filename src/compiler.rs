@@ -46,6 +46,9 @@ pub mod compiler {
         Jump(usize),
         Ret(Reg),
         RetNone,
+        ObjIns(Reg, Reg, Reg),
+        ObjGet(Reg, Reg, Reg),
+        ObjNew(Reg),
     }
 
     pub struct Compiler<'a> {
@@ -107,7 +110,7 @@ pub mod compiler {
                 Ast::FuncDef(a, b, c) => self.compile_function(None, a, b, c, n.pos()),
                 Ast::Let(id, e0) => self.compile_let(id, e0, n.pos()),
                 Ast::Assign(op, reference, e0) => self.compile_assign(*op, reference, e0),
-                Ast::Call(f, args) => self.compile_call(self.seg().slots(), f, args),
+                Ast::Call(f, args) => self.compile_call(self.seg().spare_reg(), f, args),
                 Ast::Return(e0) if self.seg().is_local() => self.compile_return(e0),
                 Ast::Return(_) => error::Error::invalid_return_position(n.pos()).err(),
                 _ => unreachable!(),
@@ -203,12 +206,33 @@ pub mod compiler {
             v: &AstNode,
             e0: &AstNode,
         ) -> Result<&mut Self, error::Error> {
+            let r = self.seg().spare_reg();
+
             let id = match v.ast() {
                 Ast::Reference(id) => Ok(id),
+                Ast::Subscript(e1, e2) => {
+                    self.seg_mut().inc_slots(r + 2);
+                    return Ok(self
+                        .compile_expr(r, e1)?
+                        .compile_expr(r + 1, e2)?
+                        .compile_expr(r + 2, e0)?
+                        .with(Ins::ObjIns(r, r + 1, r + 2)));
+                }
+                Ast::Deref(e1, e2) => {
+                    self.seg_mut().inc_slots(r + 2);
+                    let k = self
+                        .seg_mut()
+                        .storek(vm::Value::String(Box::new(e2.to_string())));
+
+                    return Ok(self
+                        .compile_expr(r, e1)?
+                        .with(Ins::LoadK(r + 1, k))
+                        .compile_expr(r + 2, e0)?
+                        .with(Ins::ObjIns(r, r + 1, r + 2)));
+                }
                 _ => error::Error::invalid_ast_node(v.pos()).err(),
             }?;
 
-            let r = self.seg().spare_reg();
             self.compile_expr(r, e0)?;
 
             let global_reg = self.global_seg().locals().get(id);
@@ -284,10 +308,11 @@ pub mod compiler {
             self.seg_mut().inc_slots(r + 1);
 
             match e.ast() {
+                Ast::Object(vs) => self.compile_obj(r, vs),
+                Ast::Deref(e0, e1) => self.compile_deref(r, e0, e1),
+                Ast::Subscript(e0, e1) => self.compile_subscript(r, e0, e1),
                 Ast::Call(f, args) => self.compile_call(r, f, args),
                 Ast::Reference(id) => self.compile_id(r, id, e.pos()),
-                Ast::Deref(_, _) => todo!(),
-                Ast::Subscript(_, _) => todo!(),
                 Ast::UnaryExp(op, e0) => self.compile_unary(r, *op, e0),
                 Ast::TernaryExp(e0, e1, e2) => self.compile_ternary(r, e0, e1, e2),
                 Ast::BinaryExp(op, e0, e1) => match op {
@@ -474,6 +499,52 @@ pub mod compiler {
                     }
                 })
             })
+        }
+
+        fn compile_obj(
+            &mut self,
+            r: Reg,
+            vs: &Vec<(AstNode, AstNode)>,
+        ) -> Result<&mut Self, error::Error> {
+            self.seg_mut().inc_slots(r + 2);
+            self.with(Ins::ObjNew(r));
+
+            for (k, v) in vs.iter() {
+                self.compile_expr(r + 1, k)?
+                    .compile_expr(r + 2, v)?
+                    .with(Ins::ObjIns(r, r + 1, r + 2));
+            }
+
+            Ok(self)
+        }
+
+        fn compile_subscript(
+            &mut self,
+            r: Reg,
+            e0: &AstNode,
+            e1: &AstNode,
+        ) -> Result<&mut Self, error::Error> {
+            self.compile_expr(r, e0)?
+                .compile_expr(r + 1, e1)?
+                .with(Ins::ObjGet(r, r, r + 1));
+            Ok(self)
+        }
+
+        fn compile_deref(
+            &mut self,
+            r: Reg,
+            e0: &AstNode,
+            e1: &String,
+        ) -> Result<&mut Self, error::Error> {
+            let k = self
+                .seg_mut()
+                .storek(vm::Value::String(Box::new(e1.to_string())));
+
+            self.compile_expr(r, e0)?
+                .with(Ins::LoadK(r + 1, k))
+                .with(Ins::ObjGet(r, r, r + 1));
+
+            Ok(self)
         }
     }
 

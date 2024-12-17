@@ -21,6 +21,7 @@ pub mod vm {
         Bool(bool),
         Func(u32, u16),
         String(Box<String>),
+        Object(u32),
     }
 
     pub struct Segment {
@@ -419,13 +420,17 @@ pub mod vm {
                                 .err()?,
                         },
                         Ins::Ret(a) => {
-                            self.registers[ci.retloc] = reg[a as usize].clone();
+                            let v = reg[a as usize].clone();
+                            reg.fill(Value::Null);
+                            self.registers[ci.retloc] = v;
                             continue 'next_call;
                         }
                         Ins::RetNone => {
+                            reg.fill(Value::Null);
                             self.registers[ci.retloc] = Value::Null;
                             continue 'next_call;
                         }
+                        _ => todo!(),
                     };
                     ci.pc += 1;
                 }
@@ -443,6 +448,7 @@ pub mod vm {
                 Value::Bool(v) => *v,
                 Value::Func(_, _) => true,
                 Value::String(v) => v.len() > 0,
+                Value::Object(_) => todo!(),
             }
         }
 
@@ -454,6 +460,7 @@ pub mod vm {
                 Value::Bool(_) => "Boolean",
                 Value::Func(_, _) => "Function",
                 Value::String(_) => "String",
+                Value::Object(_) => todo!(),
             }
         }
 
@@ -473,6 +480,9 @@ pub mod vm {
                 (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.add(*v0))),
                 (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).add(*v1))),
                 (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.add((*v1) as f32))),
+                (Value::String(v0), Value::String(v1)) => {
+                    Ok(Value::String(Box::new(v0.to_string() + v1)))
+                }
                 (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Add, t0, t1).err(),
             }
         }
@@ -599,4 +609,10 @@ pub mod vm {
             }
         }
     }
+
+    // impl Drop for Value {
+    //     fn drop(self: &'_ mut Self) {
+    //         eprintln!("Dropping Node {:?} at {:p}", self, self);
+    //     }
+    // }
 }

@@ -14,6 +14,7 @@ pub mod parser {
         Float(f32),
         Bool(bool),
         String(String),
+        Object(Vec<(AstNode, AstNode)>),
         Reference(String),
         Block(Vec<AstNode>),
         TernaryExp(Box<AstNode>, Box<AstNode>, Box<AstNode>),
@@ -170,6 +171,19 @@ pub mod parser {
 
                     Ok(())
                 }
+                Ast::Object(vec) => {
+                    writeln!(f, "{}", "object-literal".green())?;
+                    for (i, (k, v)) in vec.iter().enumerate() {
+                        if i == vec.len() - 1 {
+                            k.print_tree(f, stem, level + 1, true)?;
+                            v.print_tree(f, stem, level + 2, true)?
+                        } else {
+                            k.print_tree(f, stem, level + 1, false)?;
+                            v.print_tree(f, stem | (1 << (level + 1)), level + 2, true)?
+                        }
+                    }
+                    Ok(())
+                }
             }
         }
     }
@@ -261,14 +275,7 @@ pub mod parser {
                 Tk::Let => self.parse_let(),
                 Tk::Return => self.parse_return(),
                 Tk::Fun => self.parse_function(false),
-                Tk::Id(_) => match &self.lookahead().tk {
-                    Tk::Operator(_) => self.parse_assign(),
-                    Tk::LeftParen => {
-                        let f = self.parse_reference()?;
-                        self.expect(Tk::Semi).map(|_| f)
-                    }
-                    tk => error::Error::unexpected_token_any(tk, self.lookahead().pos).err(),
-                },
+                Tk::Id(_) => self.parse_assign_or_call(),
                 tk => error::Error::unexpected_token_any(tk, self.head().pos).err(),
             }
         }
@@ -288,26 +295,23 @@ pub mod parser {
             Ok(AstNode::new(Ast::Let(id, e), pos))
         }
 
-        fn parse_assign(&mut self) -> Result<AstNode, error::Error> {
+        fn parse_assign_or_call(&mut self) -> Result<AstNode, error::Error> {
             let pos = self.head().pos;
-            let id = self
-                .consume()?
-                .as_id()
-                .map(|s| Box::new(AstNode::new(Ast::Reference(s.to_string()), pos)))
-                .ok_or(error::Error::id_expected(pos))?;
+            let id = self.parse_reference()?;
 
             let op = match &self.consume()?.tk {
                 Tk::Operator(
                     op @ (Op::Assign | Op::AddEq | Op::SubEq | Op::MulEq | Op::ModEq | Op::DivEq),
                 ) => Ok(*op),
                 Tk::Operator(op) => error::Error::non_assign_op(*op, self.head().pos).err(),
+                Tk::Semi => return Ok(id),
                 tk => error::Error::unexpected_token_any(tk, pos).err(),
             }?;
 
             let e = Box::new(self.parse_expression()?);
             self.expect(Tk::Semi)?;
 
-            Ok(AstNode::new(Ast::Assign(op, id, e), pos))
+            Ok(AstNode::new(Ast::Assign(op, Box::new(id), e), pos))
         }
 
         fn parse_if_stmt(&mut self) -> Result<AstNode, error::Error> {
@@ -433,6 +437,7 @@ pub mod parser {
                 Tk::If => self.parse_ternary(),
                 Tk::Fun => self.parse_function(true),
                 Tk::Id(_) => self.parse_reference(),
+                Tk::LeftBrace => self.parse_object(),
                 Tk::LeftParen => {
                     self.consume()?;
                     let node = self.parse_expression()?;
@@ -455,7 +460,7 @@ pub mod parser {
             while let nt @ (Tk::LeftParen | Tk::LeftBracket | Tk::Dot) = &self.head().tk {
                 match nt {
                     Tk::LeftParen => {
-                        self.consume()?;
+                        let pos = self.consume()?.pos;
                         lhs = AstNode::new(Ast::Call(Box::new(lhs), self.parse_exprs()?), pos);
                         self.expect(Tk::RightParen)?;
                     }
@@ -520,6 +525,26 @@ pub mod parser {
             let block = Box::new(self.parse_scoped_block()?);
 
             Ok(AstNode::new(Ast::FuncDef(id, args, block), pos))
+        }
+
+        fn parse_object(&mut self) -> Result<AstNode, error::Error> {
+            let pos = self.expect(Tk::LeftBrace)?.pos;
+            let mut values = Vec::<(AstNode, AstNode)>::new();
+
+            if !matches!(self.head().tk, Tk::RightBrace) {
+                let key = self.parse_expression()?;
+                self.expect(Tk::Colon)?;
+                values.push((key, self.parse_expression()?));
+
+                while self.consume_if(Tk::Comma)? {
+                    let key = self.parse_expression()?;
+                    self.expect(Tk::Colon)?;
+                    values.push((key, self.parse_expression()?));
+                }
+            }
+
+            self.expect(Tk::RightBrace)
+                .map(|_| AstNode::new(Ast::Object(values), pos))
         }
     }
 }

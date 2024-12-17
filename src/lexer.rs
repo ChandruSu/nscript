@@ -64,6 +64,7 @@ pub mod lexer {
         Semi,
         Comma,
         Dot,
+        Colon,
     }
 
     #[derive(Debug, PartialEq)]
@@ -166,6 +167,7 @@ pub mod lexer {
                 '[' => Tk::LeftBracket,
                 ']' => Tk::RightBracket,
                 ';' => Tk::Semi,
+                ':' => Tk::Colon,
                 ',' => Tk::Comma,
                 '.' => Tk::Dot,
                 '\n' => Tk::Newline,
