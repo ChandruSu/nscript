@@ -8,7 +8,7 @@ use ns::vm::vm;
 
 fn main() {
     let mut manager = io::SourceManager::new();
-    let source = match manager.load_source_file("./examples/primes.ns") {
+    let source = match manager.load_source_file("./examples/test.ns") {
         Ok(s) => s,
         Err(e) => {
             e.dump_error(&manager);
@@ -28,23 +28,23 @@ fn main() {
         }
     };
 
+    println!("Execution took: {}ms", start.elapsed().as_millis());
+
+    println!("{}", ast);
+
     let mut env = vm::Env::new();
     if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {
         e.dump_error(&manager);
         return;
     }
 
+    for (idx, program) in env.segments().iter().enumerate() {
+        println!("[idx = {}]\n{:?}", idx, program);
+    }
+
     if let Err(e) = env.execute(0) {
         e.dump_error(&manager);
         return;
-    }
-
-    println!("Execution took: {}ms", start.elapsed().as_millis());
-
-    println!("{}", ast);
-
-    for (idx, program) in env.segments().iter().enumerate() {
-        println!("[idx = {}]\n{:?}", idx, program);
     }
 
     for i in 0..10 {
