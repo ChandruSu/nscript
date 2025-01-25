@@ -1,0 +1,13 @@
+
+
+fun mult(n) {
+  return fun (x) {
+    return x * n;
+  };
+}
+
+let double = mult(2);
+let six = double(3);
+let eightf = double(4.0);
+
+let z = (fun(x){ return x + 1; })(2);

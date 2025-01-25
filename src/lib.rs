@@ -1,5 +1,5 @@
 pub mod compiler;
-pub mod gc;
+pub mod heap;
 pub mod lexer;
 pub mod parser;
 pub mod utils;

@@ -203,9 +203,9 @@ pub mod parser {
             self.lexer.head_token()
         }
 
-        fn lookahead(&self) -> &lexer::Token {
-            self.lexer.loohahead_token()
-        }
+        // fn lookahead(&self) -> &lexer::Token {
+        //     self.lexer.loohahead_token()
+        // }
 
         fn consume(&mut self) -> Result<&lexer::Token, error::Error> {
             self.lexer.next_valid_token()?;

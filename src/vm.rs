@@ -2,6 +2,7 @@ pub mod vm {
     use core::fmt;
     use std::{
         collections::{BTreeMap, HashMap},
+        hash::{Hash, Hasher},
         ops, usize,
     };
 
@@ -9,6 +10,7 @@ pub mod vm {
 
     use crate::{
         compiler::compiler::{self, Ins, Reg},
+        heap::heap::{GCObject, Heap},
         lexer::lexer,
         utils::{error, io},
     };
@@ -19,9 +21,9 @@ pub mod vm {
         Int(i32),
         Float(f32),
         Bool(bool),
-        Func(u32, u16),
         String(Box<String>),
-        Object(u32),
+        Func(u32, usize),
+        Object(usize),
     }
 
     pub struct Segment {
@@ -49,7 +51,7 @@ pub mod vm {
         calls: Vec<CallInfo>,
         registers: Vec<Value>,
         globals: Vec<Value>,
-        closures: Vec<Vec<Value>>,
+        pub heap: Heap,
     }
 
     impl Segment {
@@ -208,7 +210,7 @@ pub mod vm {
                 calls: vec![],
                 registers: vec![Value::Null; 1024],
                 globals: vec![Value::Null; 128],
-                closures: vec![vec![]],
+                heap: Heap::new(8),
                 segments: vec![Segment {
                     name: "__start".to_string(),
                     global: true,
@@ -368,7 +370,10 @@ pub mod vm {
                             reg[a as usize] = self.globals[b as usize].clone();
                         }
                         Ins::LoadU(a, b) => {
-                            reg[a as usize] = self.closures[ci.closure][b as usize].clone();
+                            reg[a as usize] = match self.heap.get(ci.closure) {
+                                GCObject::Closure(vec) => vec[b as usize].clone(),
+                                _ => todo!(),
+                            }
                         }
                         Ins::LoadK(a, b) => {
                             reg[a as usize] = pg.constants[b as usize].clone();
@@ -391,9 +396,12 @@ pub mod vm {
                         }
                         Ins::Close(a, b, c) => match &reg[a as usize] {
                             Value::Func(program, _) => {
-                                reg[a as usize] =
-                                    Value::Func(*program, self.closures.len().try_into().unwrap());
-                                self.closures.push(reg[b as usize..c as usize].to_vec());
+                                reg[a as usize] = Value::Func(
+                                    *program,
+                                    self.heap.alloc(GCObject::Closure(
+                                        reg[b as usize..c as usize].to_vec(),
+                                    )),
+                                );
                             }
                             t0 => error::Error::uncallable_type(t0)
                                 .with_pos(pg.get_pos(ci.pc))
@@ -430,7 +438,29 @@ pub mod vm {
                             self.registers[ci.retloc] = Value::Null;
                             continue 'next_call;
                         }
-                        _ => todo!(),
+                        Ins::ObjNew(a) => {
+                            reg[a as usize] =
+                                Value::Object(self.heap.alloc(GCObject::Object(HashMap::new())));
+                        }
+                        Ins::ObjGet(a, b, c) => {
+                            reg[a as usize] = match self.heap.get(b as usize) {
+                                GCObject::Object(m) => m[&reg[c as usize]].clone(),
+                                _ => todo!(),
+                            }
+                        }
+                        Ins::ObjIns(a, b, c) => {
+                            let k = reg[b as usize].clone();
+                            let v = reg[c as usize].clone();
+                            match reg[a as usize] {
+                                Value::Object(ptr) => match self.heap.get(ptr) {
+                                    GCObject::Object(m) => {
+                                        m.insert(k, v);
+                                    }
+                                    _ => todo!(),
+                                },
+                                _ => todo!(),
+                            }
+                        }
                     };
                     ci.pc += 1;
                 }
@@ -610,9 +640,38 @@ pub mod vm {
         }
     }
 
-    // impl Drop for Value {
-    //     fn drop(self: &'_ mut Self) {
-    //         eprintln!("Dropping Node {:?} at {:p}", self, self);
-    //     }
-    // }
+    impl Eq for Value {}
+
+    impl Hash for Value {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            match self {
+                Value::Null => state.write_u8(0),
+                Value::Int(i) => {
+                    state.write_u8(1);
+                    i.hash(state);
+                }
+                Value::Float(f) => {
+                    state.write_u8(2);
+                    state.write_u32(f.to_bits());
+                }
+                Value::Bool(b) => {
+                    state.write_u8(3);
+                    b.hash(state);
+                }
+                Value::String(s) => {
+                    state.write_u8(4);
+                    s.hash(state);
+                }
+                Value::Func(id, addr) => {
+                    state.write_u8(5);
+                    id.hash(state);
+                    addr.hash(state);
+                }
+                Value::Object(o) => {
+                    state.write_u8(6);
+                    o.hash(state);
+                }
+            }
+        }
+    }
 }

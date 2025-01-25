@@ -1,4 +1,12 @@
 
-let x = {"a": "2", "z": 4};
+fun Animal(name, species) {
+    return {
+        "name": name,
+        "sound": fun () {
+            return "I am a " + species;
+        }
+    };
+}
 
-x["a"].z()["z"] = 3;
+let john = Animal("John", "Dog");
+john.sound();

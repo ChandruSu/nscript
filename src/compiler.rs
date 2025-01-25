@@ -117,6 +117,7 @@ pub mod compiler {
             }
         }
 
+        // TODO: test this heavily
         fn compile_function(
             &mut self,
             r: Option<Reg>,
@@ -159,7 +160,7 @@ pub mod compiler {
             self.curr_seg = old_segment;
 
             if self.seg().is_global() {
-                self.with(Ins::LoadF(0, fid));
+                self.with(Ins::LoadF(r.unwrap_or(0), fid));
             } else {
                 self.with(Ins::LoadF(fr, fid));
             }
@@ -181,7 +182,7 @@ pub mod compiler {
             }
 
             if self.seg().is_global() && matches!(name, Some(_)) {
-                self.with(Ins::SetG(fr, 0));
+                self.with(Ins::SetG(fr, r.unwrap_or(0)));
             }
 
             Ok(self)
