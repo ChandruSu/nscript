@@ -54,11 +54,18 @@ pub mod compiler {
     pub struct Compiler<'a> {
         env: &'a mut vm::Env,
         curr_seg: usize,
+        loop_begins: Vec<usize>,
+        end_jumps: Vec<usize>,
     }
 
     impl<'a> Compiler<'a> {
         pub fn new(env: &'a mut vm::Env) -> Self {
-            Self { env, curr_seg: 0 }
+            Self {
+                env,
+                curr_seg: 0,
+                loop_begins: Vec::new(),
+                end_jumps: Vec::new(),
+            }
         }
 
         fn seg(&self) -> &vm::Segment {
@@ -113,6 +120,14 @@ pub mod compiler {
                 Ast::Call(f, args) => self.compile_call(self.seg().spare_reg(), f, args),
                 Ast::Return(e0) if self.seg().is_local() => self.compile_return(e0),
                 Ast::Return(_) => error::Error::invalid_return_position(n.pos()).err(),
+                Ast::Break => {
+                    self.end_jumps.push(self.seg().count());
+                    Ok(self.with(Ins::Nop))
+                }
+                Ast::Continue => match self.loop_begins.last() {
+                    Some(i) => Ok(self.with(Ins::Jump(*i))),
+                    None => error::Error::invalid_continue_pos(n.pos()).err(),
+                },
                 _ => unreachable!(),
             }
         }
@@ -267,10 +282,21 @@ pub mod compiler {
 
         fn compile_while(&mut self, e0: &AstNode, b0: &AstNode) -> Result<&mut Self, error::Error> {
             let r = self.seg().spare_reg();
-            let jmp0 = self.seg().count();
-            let jmp1 = self.compile_expr(r, e0)?.seg().count();
-            let jmp2 = self.with(Ins::Nop).compile_block(b0)?.seg().count() + 1;
 
+            let jmp0 = self.seg().count();
+            self.loop_begins.push(jmp0);
+
+            let jmp1 = self.compile_expr(r, e0)?.seg().count();
+            let breaks_start = self.end_jumps.len();
+
+            let jmp2 = self.with(Ins::Nop).compile_block(b0)?.seg().count() + 1;
+            self.loop_begins.pop();
+
+            for i in breaks_start..self.end_jumps.len() {
+                self.set_ins(self.end_jumps[i], Ins::Jump(jmp2));
+            }
+
+            self.end_jumps.truncate(breaks_start);
             Ok(self
                 .set_ins(jmp1, Ins::JumpFalse(r, jmp2))
                 .with(Ins::Jump(jmp0)))

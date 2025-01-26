@@ -179,6 +179,14 @@ pub mod error {
             }
         }
 
+        pub fn invalid_continue_pos(pos: io::Pos) -> Self {
+            Self {
+                msg: format!("Continue statement outside of loop"),
+                err_type: ErrorType::SyntaxError,
+                pos: Some(pos),
+            }
+        }
+
         pub fn unknown_var_name(name: String, pos: io::Pos) -> Self {
             Self {
                 msg: format!("Unknown variable referenced: '{}'", name),

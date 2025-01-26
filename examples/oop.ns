@@ -1,0 +1,16 @@
+
+fun Animal(name, species) {
+    let self = {
+        "name": name,
+        "age": 1,
+    };
+
+    self.sound = fun() {
+        return "I'm " + self["name"] + ", and I am a " + species;
+    };
+    
+    return self;
+}
+
+let john = Animal("John", "Dog");
+john.sound();

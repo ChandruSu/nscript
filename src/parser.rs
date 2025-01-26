@@ -29,6 +29,8 @@ pub mod parser {
         If(Box<AstNode>, Box<AstNode>, Option<Box<AstNode>>),
         While(Box<AstNode>, Box<AstNode>),
         FuncDef(Option<String>, Vec<String>, Box<AstNode>),
+        Break,
+        Continue,
     }
 
     pub struct AstNode {
@@ -90,6 +92,8 @@ pub mod parser {
                 Ast::Bool(b) => writeln!(f, "{} {}", "bool-literal".green(), *b),
                 Ast::String(s) => writeln!(f, "{} {}", "string-literal".green(), *s),
                 Ast::Reference(s) => writeln!(f, "{} {}", "reference".green(), *s),
+                Ast::Break => writeln!(f, "{}", "break".green()),
+                Ast::Continue => writeln!(f, "{}", "continue".green()),
                 Ast::TernaryExp(a, b, c) => {
                     writeln!(f, "{}", "ternary-expression".green())?;
                     a.print_tree(f, stem, level + 1, false)?;
@@ -276,6 +280,16 @@ pub mod parser {
                 Tk::Return => self.parse_return(),
                 Tk::Fun => self.parse_function(false),
                 Tk::Id(_) => self.parse_assign_or_call(),
+                Tk::Break => {
+                    let pos = self.consume()?.pos;
+                    self.expect(Tk::Semi)?;
+                    Ok(AstNode::new(Ast::Break, pos))
+                }
+                Tk::Continue => {
+                    let pos = self.consume()?.pos;
+                    self.expect(Tk::Semi)?;
+                    Ok(AstNode::new(Ast::Continue, pos))
+                }
                 tk => error::Error::unexpected_token_any(tk, self.head().pos).err(),
             }
         }

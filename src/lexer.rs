@@ -52,6 +52,9 @@ pub mod lexer {
         Else,
         While,
         Return,
+        Break,
+        Continue,
+        Import,
         EOF,
         Whitespace,
         Newline,
@@ -268,6 +271,9 @@ pub mod lexer {
                 "true" => Tk::Bool(true),
                 "false" => Tk::Bool(false),
                 "null" => Tk::Null,
+                "break" => Tk::Break,
+                "continue" => Tk::Continue,
+                "import" => Tk::Import,
                 _ => Tk::Id(buf),
             }
         }

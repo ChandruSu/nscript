@@ -443,15 +443,15 @@ pub mod vm {
                                 Value::Object(self.heap.alloc(GCObject::Object(HashMap::new())));
                         }
                         Ins::ObjGet(a, b, c) => {
-                            let ptr = match reg[b as usize] {
-                                Value::Object(ptr) => ptr,
+                            match reg[b as usize] {
+                                Value::Object(ptr) => {
+                                    reg[a as usize] = match self.heap.get(ptr) {
+                                        GCObject::Object(m) => m[&reg[c as usize]].clone(),
+                                        _ => todo!(),
+                                    }
+                                }
                                 _ => todo!(),
                             };
-
-                            reg[a as usize] = match self.heap.get(ptr) {
-                                GCObject::Object(m) => m[&reg[c as usize]].clone(),
-                                _ => todo!(),
-                            }
                         }
                         Ins::ObjIns(a, b, c) => {
                             let k = reg[b as usize].clone();
