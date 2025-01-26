@@ -1,9 +1,11 @@
 
-let i = 0;
-let j = 0;
+let std = import("std");
+
 let x = 0;
+let i = 0;
 
 while i < 10 {
+  let j = 0;
   while j < 5 {
     if j == 5 {
       break;

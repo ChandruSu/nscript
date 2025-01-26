@@ -49,6 +49,7 @@ pub mod compiler {
         ObjIns(Reg, Reg, Reg),
         ObjGet(Reg, Reg, Reg),
         ObjNew(Reg),
+        Import(Reg, Reg),
     }
 
     pub struct Compiler<'a> {
@@ -352,6 +353,7 @@ pub mod compiler {
                 Ast::Null | Ast::Int(_) | Ast::Float(_) | Ast::Bool(_) | Ast::String(_) => {
                     self.compile_literal(r, e)
                 }
+                Ast::Import(s) => self.compile_import(r, s),
                 _ => unreachable!(),
             }
         }
@@ -526,6 +528,13 @@ pub mod compiler {
                     }
                 })
             })
+        }
+
+        fn compile_import(&mut self, r: Reg, path: &String) -> Result<&mut Self, error::Error> {
+            let k = self
+                .seg_mut()
+                .storek(vm::Value::String(Box::new(path.to_string())));
+            Ok(self.with(Ins::Import(r, k)))
         }
 
         fn compile_obj(

@@ -466,6 +466,13 @@ pub mod vm {
                                 _ => todo!(),
                             }
                         }
+                        Ins::Import(a, b) => match &pg.constants[b as usize] {
+                            Value::String(s) => {
+                                let k = self.heap.alloc(GCObject::Object(HashMap::new()));
+                                reg[a as usize] = Value::Object(k);
+                            }
+                            _ => todo!(),
+                        },
                     };
                     ci.pc += 1;
                 }

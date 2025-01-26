@@ -31,6 +31,7 @@ pub mod parser {
         FuncDef(Option<String>, Vec<String>, Box<AstNode>),
         Break,
         Continue,
+        Import(String),
     }
 
     pub struct AstNode {
@@ -94,6 +95,7 @@ pub mod parser {
                 Ast::Reference(s) => writeln!(f, "{} {}", "reference".green(), *s),
                 Ast::Break => writeln!(f, "{}", "break".green()),
                 Ast::Continue => writeln!(f, "{}", "continue".green()),
+                Ast::Import(s) => writeln!(f, "{} '{}'", "import".green(), s),
                 Ast::TernaryExp(a, b, c) => {
                     writeln!(f, "{}", "ternary-expression".green())?;
                     a.print_tree(f, stem, level + 1, false)?;
@@ -303,10 +305,26 @@ pub mod parser {
                 .ok_or(error::Error::id_expected(pos))?;
 
             self.expect(Tk::Operator(Op::Assign))?;
-            let e = Box::new(self.parse_expression()?);
+            let e = Box::new(match &self.head().tk {
+                Tk::Import => self.parse_import(),
+                _ => self.parse_expression(),
+            }?);
             self.expect(Tk::Semi)?;
 
             Ok(AstNode::new(Ast::Let(id, e), pos))
+        }
+
+        fn parse_import(&mut self) -> Result<AstNode, error::Error> {
+            let pos = self.expect(Tk::Import)?.pos;
+            self.expect(Tk::LeftParen)?;
+
+            let path = match &self.consume()?.tk {
+                Tk::String(s) => Ok(s.clone()),
+                tk => error::Error::unexpected_token_any(tk, pos).err(),
+            }?;
+
+            self.expect(Tk::RightParen)?;
+            Ok(AstNode::new(Ast::Import(path), pos))
         }
 
         fn parse_assign_or_call(&mut self) -> Result<AstNode, error::Error> {

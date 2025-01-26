@@ -33,6 +33,7 @@ pub mod heap {
         tail: Option<usize>,
     }
 
+    // TODO: create trait for Allocator interface
     impl Heap {
         pub fn new(initial_size: usize) -> Self {
             Self {
