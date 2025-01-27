@@ -1,0 +1,8 @@
+
+fun sqr(x) {
+  return x * x;   
+}
+
+fun sum(a, b) {
+  return a + b;
+}

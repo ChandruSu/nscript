@@ -57,6 +57,7 @@ pub mod vm {
         globals: Vec<Value>,
         pub heap: Heap,
         pub sources: io::SourceManager,
+        import_cache: HashMap<String, usize>,
     }
 
     impl Segment {
@@ -247,6 +248,7 @@ pub mod vm {
                 globals: vec![Value::Null; 128],
                 heap: Heap::new(8),
                 sources: io::SourceManager::new(),
+                import_cache: HashMap::new(),
                 segments: vec![
                     Segment::new("__start".to_string(), true),
                     Segment::native("__import".to_string(), 1, &|env, args| {
@@ -264,36 +266,40 @@ pub mod vm {
                 _ => unreachable!(),
             };
 
-            let new_main = Segment::new("__start".to_string(), true);
+            if let Some(v) = self.import_cache.get(&path) {
+                Ok(Value::Object(*v))
+            } else {
+                let new_main = Segment::new("__start".to_string(), true);
 
-            let new_globals = vec![Value::Null; 128];
-            let new_registers = vec![Value::Null; 1024];
-            let old_globals = std::mem::replace(&mut self.globals, new_globals);
-            let old_registers = std::mem::replace(&mut self.registers, new_registers);
-            let old_calls = std::mem::take(&mut self.calls);
-            let old_main = std::mem::replace(&mut self.segments[0], new_main);
+                let new_globals = vec![Value::Null; 128];
+                let new_registers = vec![Value::Null; 1024];
+                let old_globals = std::mem::replace(&mut self.globals, new_globals);
+                let old_registers = std::mem::replace(&mut self.registers, new_registers);
+                let old_calls = std::mem::take(&mut self.calls);
+                let old_main = std::mem::replace(&mut self.segments[0], new_main);
 
-            let ast = &parser::Parser::new(&mut lexer::Lexer::new(
-                self.sources.load_source_file(&path)?,
-            ))
-            .parse()?;
+                let src = self.sources.load_source_file(&path)?;
+                let ast = &parser::Parser::new(&mut lexer::Lexer::new(src)).parse()?;
 
-            compiler::Compiler::new(self).compile(ast)?;
-            self.execute(0)?;
+                compiler::Compiler::new(self).compile(ast)?;
+                self.execute(0)?;
 
-            let exports = self.segments[0]
-                .symbols
-                .iter()
-                .map(|(k, v)| (Value::from_string(k), self.globals[*v as usize].clone()))
-                .collect();
+                let exports = self.segments[0]
+                    .symbols
+                    .iter()
+                    .map(|(k, v)| (Value::from_string(k), self.globals[*v as usize].clone()))
+                    .collect();
 
-            let i = self.heap.alloc(GCObject::Object(exports));
+                let i = self.heap.alloc(GCObject::Object(exports));
+                self.import_cache.insert(path, i);
 
-            self.calls = old_calls;
-            self.globals = old_globals;
-            self.registers = old_registers;
-            self.segments[0] = old_main;
-            Ok(Value::Object(i))
+                self.calls = old_calls;
+                self.globals = old_globals;
+                self.registers = old_registers;
+                self.segments[0] = old_main;
+
+                Ok(Value::Object(i))
+            }
         }
 
         pub fn new_seg(

@@ -1,4 +1,16 @@
 
-let math = import("./examples/import.ns");
+let math = import("./examples/math.ns");
 
 let x = math.sqr(7);
+let s = import("./examples/math.ns").sum(1, 2);
+
+let f = fun() {
+  return {
+    "test": 3
+  };
+};
+
+f()["test"] = 2;
+
+
+

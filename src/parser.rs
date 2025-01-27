@@ -305,10 +305,7 @@ pub mod parser {
                 .ok_or(error::Error::id_expected(pos))?;
 
             self.expect(Tk::Operator(Op::Assign))?;
-            let e = Box::new(match &self.head().tk {
-                Tk::Import => self.parse_import(),
-                _ => self.parse_expression(),
-            }?);
+            let e = Box::new(self.parse_expression()?);
             self.expect(Tk::Semi)?;
 
             Ok(AstNode::new(Ast::Let(id, e), pos))
@@ -392,7 +389,7 @@ pub mod parser {
         }
 
         pub fn parse_expression(&mut self) -> Result<AstNode, error::Error> {
-            self.parse_ternary()
+            self.parse_binary(lexer::MAX_OP_PRECEDENCE)
         }
 
         fn parse_ternary(&mut self) -> Result<AstNode, error::Error> {
@@ -455,7 +452,7 @@ pub mod parser {
                     self.parse_unary()
                 }
                 Tk::Operator(op) => error::Error::non_unary_op(op, self.head().pos).err(),
-                _ => self.parse_term(),
+                _ => self.parse_reference(),
             }
         }
 
@@ -466,9 +463,10 @@ pub mod parser {
                 Tk::Bool(b) => Ok(AstNode::new(Ast::Bool(*b), self.consume()?.pos)),
                 Tk::Float(f) => Ok(AstNode::new(Ast::Float(*f), self.consume()?.pos)),
                 Tk::String(s) => Ok(AstNode::new(Ast::String(s.clone()), self.consume()?.pos)),
+                Tk::Id(s) => Ok(AstNode::new(Ast::Reference(s.clone()), self.consume()?.pos)),
+                Tk::Import => self.parse_import(),
                 Tk::If => self.parse_ternary(),
                 Tk::Fun => self.parse_function(true),
-                Tk::Id(_) => self.parse_reference(),
                 Tk::LeftBrace => self.parse_object(),
                 Tk::LeftParen => {
                     self.consume()?;
@@ -483,13 +481,11 @@ pub mod parser {
         fn parse_reference(&mut self) -> Result<AstNode, error::Error> {
             let pos = self.head().pos;
 
-            let mut lhs = self
-                .consume()?
-                .as_id()
-                .map(|s| AstNode::new(Ast::Reference(s.to_string()), pos))
-                .ok_or(error::Error::id_expected(pos))?;
+            let mut lhs = self.parse_term()?;
+            println!("{}", lhs);
 
             while let nt @ (Tk::LeftParen | Tk::LeftBracket | Tk::Dot) = &self.head().tk {
+                // TODO: check lhs type
                 match nt {
                     Tk::LeftParen => {
                         let pos = self.consume()?.pos;

@@ -53,8 +53,10 @@ pub mod io {
                 Ok(content) => {
                     self.sources.push(Source {
                         id: self.sources.len() as u32,
-                        src_origin: file_path.to_string(),
                         src_content: content,
+                        src_origin: fs::canonicalize(file_path)
+                            .map(|p| p.into_os_string().into_string().unwrap())
+                            .unwrap_or(file_path.to_string()),
                     });
 
                     Ok(self.sources.last().unwrap())
