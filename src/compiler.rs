@@ -49,7 +49,7 @@ pub mod compiler {
         ObjIns(Reg, Reg, Reg),
         ObjGet(Reg, Reg, Reg),
         ObjNew(Reg),
-        Import(Reg, Reg),
+        Import(Reg),
     }
 
     pub struct Compiler<'a> {
@@ -534,7 +534,7 @@ pub mod compiler {
             let k = self
                 .seg_mut()
                 .storek(vm::Value::String(Box::new(path.to_string())));
-            Ok(self.with(Ins::Import(r, k)))
+            Ok(self.with(Ins::LoadK(r, k)).with(Ins::Import(r)))
         }
 
         fn compile_obj(

@@ -1,0 +1,4 @@
+
+fun sqr(x) {
+ return x * x;   
+}

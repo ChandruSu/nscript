@@ -53,10 +53,7 @@ pub mod heap {
             println!("Heap Dump (tail = {:?}):", self.tail);
 
             for (i, item) in self.slots.iter().enumerate() {
-                println!(
-                    "Node {} prev {:?} next {} marked {} content {:?}",
-                    i, item.prev, item.next, item.marked, item.item
-                )
+                println!("Node {} content {:?}", i, item.item)
             }
             println!()
         }

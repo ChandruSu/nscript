@@ -12,6 +12,7 @@ pub mod vm {
         compiler::compiler::{self, Ins, Reg},
         heap::heap::{GCObject, Heap},
         lexer::lexer,
+        parser::parser,
         utils::{error, io},
     };
 
@@ -26,6 +27,8 @@ pub mod vm {
         Object(usize),
     }
 
+    type NativeFnPtr = &'static dyn Fn(&mut Env, Vec<Value>) -> Result<Value, error::Error>;
+
     pub struct Segment {
         name: String,
         global: bool,
@@ -36,6 +39,7 @@ pub mod vm {
         upvals: HashMap<String, Reg>,
         parent: Option<usize>,
         positions: BTreeMap<usize, io::Pos>,
+        native: Option<NativeFnPtr>,
     }
 
     struct CallInfo {
@@ -52,6 +56,7 @@ pub mod vm {
         registers: Vec<Value>,
         globals: Vec<Value>,
         pub heap: Heap,
+        pub sources: io::SourceManager,
     }
 
     impl Segment {
@@ -208,21 +213,88 @@ pub mod vm {
         pub fn new() -> Self {
             Self {
                 calls: vec![],
-                registers: vec![Value::Null; 1024],
+                registers: vec![Value::Null; 1024], // TODO: make these dynamic Stack allocators
                 globals: vec![Value::Null; 128],
                 heap: Heap::new(8),
-                segments: vec![Segment {
-                    name: "__start".to_string(),
-                    global: true,
-                    slots: 0,
-                    bytecode: vec![],
-                    constants: vec![],
-                    upvals: HashMap::new(),
-                    symbols: HashMap::new(),
-                    positions: BTreeMap::new(),
-                    parent: None,
-                }],
+                sources: io::SourceManager::new(),
+                segments: vec![
+                    Segment {
+                        name: "__start".to_string(),
+                        global: true,
+                        slots: 0,
+                        bytecode: vec![],
+                        constants: vec![],
+                        upvals: HashMap::new(),
+                        symbols: HashMap::new(),
+                        positions: BTreeMap::new(),
+                        parent: None,
+                        native: None,
+                    },
+                    Segment {
+                        name: "__import".to_string(),
+                        global: false,
+                        slots: 1,
+                        bytecode: vec![],
+                        constants: vec![],
+                        upvals: HashMap::new(),
+                        symbols: HashMap::from([("path".to_string(), 0)]),
+                        positions: BTreeMap::new(),
+                        parent: None,
+                        native: Some(&|env, args| Self::import(env, args)),
+                    },
+                ],
             }
+        }
+
+        fn import(&mut self, args: Vec<Value>) -> Result<Value, error::Error> {
+            // TODO: cache and return reimports
+
+            let path = match args.first() {
+                Some(Value::String(path)) => path.to_string(),
+                _ => unreachable!(),
+            };
+
+            let new_main = Segment {
+                name: "__start".to_string(),
+                global: true,
+                slots: 0,
+                bytecode: vec![],
+                constants: vec![],
+                upvals: HashMap::new(),
+                symbols: HashMap::new(),
+                positions: BTreeMap::new(),
+                parent: None,
+                native: None,
+            };
+
+            let new_globals = vec![Value::Null; 128];
+            let new_registers = vec![Value::Null; 1024];
+            let old_globals = std::mem::replace(&mut self.globals, new_globals);
+            let old_registers = std::mem::replace(&mut self.registers, new_registers);
+            let old_calls = std::mem::take(&mut self.calls);
+            let old_main = std::mem::replace(&mut self.segments[0], new_main);
+
+            let ast = &parser::Parser::new(&mut lexer::Lexer::new(
+                self.sources.load_source_file(&path)?,
+            ))
+            .parse()?;
+
+            compiler::Compiler::new(self).compile(ast)?;
+            self.execute(0)?;
+
+            let exports = self.segments[0]
+                .symbols
+                .iter()
+                .map(|(k, v)| (Value::from_string(k), self.globals[*v as usize].clone()))
+                .collect();
+
+            let i = self.heap.alloc(GCObject::Object(exports));
+
+            self.calls = old_calls;
+            self.globals = old_globals;
+            self.registers = old_registers;
+            self.segments[0] = old_main;
+            Ok(Value::Object(i))
         }
 
         pub fn new_seg(
@@ -247,6 +319,7 @@ pub mod vm {
                 symbols,
                 positions,
                 parent,
+                native: None,
             });
             self.segments.len() - 1
         }
@@ -286,8 +359,17 @@ pub mod vm {
 
             'next_call: while let Some(mut ci) = self.calls.pop() {
                 let pg = &self.segments[ci.program];
-                let reg = &mut self.registers[ci.sp..ci.sp + pg.slots as usize + 1];
 
+                if let Some(native_func_ptr) = pg.native {
+                    self.registers[ci.retloc] = native_func_ptr(
+                        self,
+                        self.registers[ci.sp..ci.sp + pg.slots as usize].to_vec(),
+                    )?;
+                    // TODO: self.registers[ci.sp..ci.sp + pg.slots as usize + 1].fill(Value::Null);
+                    continue 'next_call;
+                }
+
+                let reg = &mut self.registers[ci.sp..ci.sp + pg.slots as usize + 1];
                 while ci.pc < pg.bytecode.len() {
                     match pg.bytecode[ci.pc] {
                         Ins::Nop => {}
@@ -466,18 +548,30 @@ pub mod vm {
                                 _ => todo!(),
                             }
                         }
-                        Ins::Import(a, b) => match &pg.constants[b as usize] {
-                            Value::String(s) => {
-                                let k = self.heap.alloc(GCObject::Object(HashMap::new()));
-                                reg[a as usize] = Value::Object(k);
-                            }
-                            _ => todo!(),
-                        },
+                        Ins::Import(a) => {
+                            let sp = ci.sp + a as usize;
+                            let retloc = ci.sp + a as usize;
+                            ci.pc += 1;
+
+                            self.calls.push(ci);
+                            self.calls.push(CallInfo {
+                                pc: 0,
+                                sp,
+                                retloc,
+                                program: 1,
+                                closure: 0,
+                            });
+                            continue 'next_call;
+                        }
                     };
                     ci.pc += 1;
                 }
             }
             Ok(())
+        }
+
+        pub fn load(&mut self) -> Result<usize, error::Error> {
+            Ok(0)
         }
     }
 
@@ -511,6 +605,10 @@ pub mod vm {
                 Value::Int(v) => Ok(Value::Int(!v)),
                 t0 => error::Error::op_type_mismatch_un(lexer::Op::BitNot, t0).err(),
             }
+        }
+
+        pub fn from_string(s: &String) -> Value {
+            Value::String(Box::new(s.to_string()))
         }
     }
 
