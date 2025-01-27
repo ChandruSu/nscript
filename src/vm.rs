@@ -60,6 +60,36 @@ pub mod vm {
     }
 
     impl Segment {
+        pub fn new(name: String, global: bool) -> Self {
+            Self {
+                name,
+                global,
+                slots: 0,
+                bytecode: vec![],
+                constants: vec![],
+                upvals: HashMap::new(),
+                symbols: HashMap::new(),
+                positions: BTreeMap::new(),
+                parent: None,
+                native: None,
+            }
+        }
+
+        pub fn native(name: String, args: u16, native: NativeFnPtr) -> Self {
+            Self {
+                name,
+                global: false,
+                slots: args,
+                bytecode: vec![],
+                constants: vec![],
+                upvals: HashMap::new(),
+                symbols: HashMap::new(),
+                positions: BTreeMap::new(),
+                parent: None,
+                native: Some(native),
+            }
+        }
+
         pub fn name(&self) -> &String {
             &self.name
         }
@@ -218,30 +248,10 @@ pub mod vm {
                 heap: Heap::new(8),
                 sources: io::SourceManager::new(),
                 segments: vec![
-                    Segment {
-                        name: "__start".to_string(),
-                        global: true,
-                        slots: 0,
-                        bytecode: vec![],
-                        constants: vec![],
-                        upvals: HashMap::new(),
-                        symbols: HashMap::new(),
-                        positions: BTreeMap::new(),
-                        parent: None,
-                        native: None,
-                    },
-                    Segment {
-                        name: "__import".to_string(),
-                        global: false,
-                        slots: 1,
-                        bytecode: vec![],
-                        constants: vec![],
-                        upvals: HashMap::new(),
-                        symbols: HashMap::from([("path".to_string(), 0)]),
-                        positions: BTreeMap::new(),
-                        parent: None,
-                        native: Some(&|env, args| Self::import(env, args)),
-                    },
+                    Segment::new("__start".to_string(), true),
+                    Segment::native("__import".to_string(), 1, &|env, args| {
+                        Self::import(env, args)
+                    }),
                 ],
             }
         }
@@ -254,18 +264,7 @@ pub mod vm {
                 _ => unreachable!(),
             };
 
-            let new_main = Segment {
-                name: "__start".to_string(),
-                global: true,
-                slots: 0,
-                bytecode: vec![],
-                constants: vec![],
-                upvals: HashMap::new(),
-                symbols: HashMap::new(),
-                positions: BTreeMap::new(),
-                parent: None,
-                native: None,
-            };
+            let new_main = Segment::new("__start".to_string(), true);
 
             let new_globals = vec![Value::Null; 128];
             let new_registers = vec![Value::Null; 1024];
