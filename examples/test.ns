@@ -1,16 +1,19 @@
 
+let std = import("std");
 let math = import("./examples/math.ns");
 
 let x = math.sqr(7);
 let s = import("./examples/math.ns").sum(1, 2);
 
+
 let f = fun() {
   return {
-    "test": 3
+    "test": 3,
+    "a": "Hello WOrld",
+    "john-stevens": true
   };
 };
 
 f()["test"] = 2;
 
-
-
+std.print(f());

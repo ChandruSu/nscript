@@ -68,7 +68,10 @@ pub mod io {
 }
 
 pub mod error {
-    use crate::{lexer::lexer, vm::vm};
+    use crate::{
+        lexer::lexer,
+        vm::vm::{self, Value},
+    };
 
     use super::io;
 
@@ -79,6 +82,7 @@ pub mod error {
         CompilerError,
         TypeError(&'static str),
         ArithmeticError(vm::Value),
+        ArgumentError(u32, u32),
     }
 
     pub struct Error {
@@ -216,6 +220,18 @@ pub mod error {
             }
         }
 
+        pub fn type_error(t0: &vm::Value, t1: &vm::Value) -> Self {
+            Self {
+                msg: format!(
+                    "Unexpected type recieved: Expected {} Recieved {}",
+                    t0.type_name(),
+                    t1.type_name()
+                ),
+                err_type: ErrorType::TypeError(t1.type_name()),
+                pos: None,
+            }
+        }
+
         pub fn op_type_mismatch_un(op: lexer::Op, t0: &vm::Value) -> Self {
             Self {
                 msg: format!("Cannot apply operation '{}' to type {}", op, t0.type_name(),),
@@ -245,10 +261,29 @@ pub mod error {
             }
         }
 
+        pub fn zero_division() -> Self {
+            Self {
+                msg: format!("Zero division error"),
+                err_type: ErrorType::ArithmeticError(Value::Int(0)),
+                pos: None,
+            }
+        }
+
         pub fn uncallable_type(t0: &vm::Value) -> Self {
             Self {
                 msg: format!("Cannot call non-function value of type {}", t0.type_name()),
                 err_type: ErrorType::TypeError(t0.type_name()),
+                pos: None,
+            }
+        }
+
+        pub fn argument_error(rec: u32, exp: u32) -> Self {
+            Self {
+                msg: format!(
+                    "Invalid number of arguments provided, recieved: {}, expected: {}",
+                    rec, exp
+                ),
+                err_type: ErrorType::ArgumentError(rec, exp),
                 pos: None,
             }
         }
@@ -308,6 +343,17 @@ pub mod error {
                             "ARITHMETIC ERROR: {}, Value: {:?} at {}:{}:{}",
                             self.msg,
                             v,
+                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            pos.line + 1,
+                            pos.column + 1
+                        )
+                    }
+                }
+                ErrorType::ArgumentError(_, _) => {
+                    if let Some(pos) = self.pos {
+                        eprintln!(
+                            "ARGUMENT ERROR: {}, at {}:{}:{}",
+                            self.msg,
                             sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1

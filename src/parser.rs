@@ -482,7 +482,6 @@ pub mod parser {
             let pos = self.head().pos;
 
             let mut lhs = self.parse_term()?;
-            println!("{}", lhs);
 
             while let nt @ (Tk::LeftParen | Tk::LeftBracket | Tk::Dot) = &self.head().tk {
                 // TODO: check lhs type

@@ -2,6 +2,7 @@ pub mod vm {
     use core::fmt;
     use std::{
         collections::{BTreeMap, HashMap},
+        fmt::format,
         hash::{Hash, Hasher},
         ops, usize,
     };
@@ -13,6 +14,7 @@ pub mod vm {
         heap::heap::{GCObject, Heap},
         lexer::lexer,
         parser::parser,
+        stdlib::stdlib,
         utils::{error, io},
     };
 
@@ -27,7 +29,7 @@ pub mod vm {
         Object(usize),
     }
 
-    type NativeFnPtr = &'static dyn Fn(&mut Env, Vec<Value>) -> Result<Value, error::Error>;
+    pub type NativeFnPtr = fn(&mut Env, usize, usize) -> Result<Value, error::Error>;
 
     pub struct Segment {
         name: String,
@@ -251,26 +253,29 @@ pub mod vm {
                 import_cache: HashMap::new(),
                 segments: vec![
                     Segment::new("__start".to_string(), true),
-                    Segment::native("__import".to_string(), 1, &|env, args| {
-                        Self::import(env, args)
-                    }),
+                    Segment::native("__import".to_string(), 1, Self::import),
                 ],
             }
         }
 
-        fn import(&mut self, args: Vec<Value>) -> Result<Value, error::Error> {
+        fn import(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
             // TODO: cache and return reimports
+            let args = &self.registers[arg0..arg0 + argc];
 
             let path = match args.first() {
                 Some(Value::String(path)) => path.to_string(),
-                _ => unreachable!(),
+                _ => return error::Error::argument_error(0, 1).err(),
             };
 
             if let Some(v) = self.import_cache.get(&path) {
                 Ok(Value::Object(*v))
+            } else if path == "std" {
+                let i = stdlib::load_std_into_env(self);
+                self.import_cache.insert(path, i);
+                Ok(Value::Object(i))
             } else {
+                // TODO: Maybe spawn new env and for each global, pull env value and realloc on current env's heap
                 let new_main = Segment::new("__start".to_string(), true);
-
                 let new_globals = vec![Value::Null; 128];
                 let new_registers = vec![Value::Null; 1024];
                 let old_globals = std::mem::replace(&mut self.globals, new_globals);
@@ -365,11 +370,8 @@ pub mod vm {
             'next_call: while let Some(mut ci) = self.calls.pop() {
                 let pg = &self.segments[ci.program];
 
-                if let Some(native_func_ptr) = pg.native {
-                    self.registers[ci.retloc] = native_func_ptr(
-                        self,
-                        self.registers[ci.sp..ci.sp + pg.slots as usize].to_vec(),
-                    )?;
+                if let Some(native_fptr) = pg.native {
+                    self.registers[ci.retloc] = native_fptr(self, ci.sp, pg.slots as usize)?;
                     // TODO: self.registers[ci.sp..ci.sp + pg.slots as usize + 1].fill(Value::Null);
                     continue 'next_call;
                 }
@@ -544,7 +546,7 @@ pub mod vm {
                             let k = reg[b as usize].clone();
                             let v = reg[c as usize].clone();
                             match reg[a as usize] {
-                                Value::Object(ptr) => match self.heap.get(ptr) {
+                                Value::Object(ptr) => match self.heap.get_mut(ptr) {
                                     GCObject::Object(m) => {
                                         m.insert(k, v);
                                     }
@@ -589,7 +591,7 @@ pub mod vm {
                 Value::Bool(v) => *v,
                 Value::Func(_, _) => true,
                 Value::String(v) => v.len() > 0,
-                Value::Object(_) => todo!(),
+                Value::Object(_) => true,
             }
         }
 
@@ -612,8 +614,57 @@ pub mod vm {
             }
         }
 
-        pub fn from_string(s: &String) -> Value {
+        pub fn from_string(s: &str) -> Value {
             Value::String(Box::new(s.to_string()))
+        }
+
+        pub fn to_repr(&self, env: &Env) -> String {
+            match self {
+                Value::String(v) => format!("'{}'", v),
+                _ => self.to_string(env),
+            }
+        }
+
+        pub fn to_string(&self, env: &Env) -> String {
+            match self {
+                Value::Null => "null".to_string(),
+                Value::Int(v) => format!("{}", v),
+                Value::Float(v) => format!("{}", v),
+                Value::String(v) => format!("{}", v),
+                Value::Bool(v) => {
+                    if *v {
+                        "true".to_string()
+                    } else {
+                        "false".to_string()
+                    }
+                }
+                Value::Func(f, _) => {
+                    let s = env.get_segment(*f as usize);
+                    format!("<function '{}' at {:p}>", s.name, s)
+                }
+                Value::Object(v) => match env.heap.get(*v) {
+                    GCObject::Object(hash_map) => format!(
+                        "{{ {} }}",
+                        hash_map
+                            .iter()
+                            .map(|(k, v)| format!("{}: {}", k.to_repr(env), v.to_repr(env)))
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    ),
+                    _ => unreachable!(),
+                },
+            }
+        }
+
+        pub fn length(&self, env: &Env) -> Result<usize, error::Error> {
+            match self {
+                Value::String(v) => Ok(v.len()),
+                Value::Object(v) => match env.heap.get(*v) {
+                    GCObject::Object(v) => Ok(v.len()),
+                    _ => error::Error::type_error(self, &Value::Object(0)).err(),
+                },
+                t1 => error::Error::type_error(self, t1).err(),
+            }
         }
     }
 
@@ -673,14 +724,18 @@ pub mod vm {
     }
 
     impl ops::Div<&Value> for &Value {
+        // TODO: handle zero division error
         type Output = Result<Value, error::Error>;
         fn div(self, rhs: &Value) -> Self::Output {
-            match (self, rhs) {
-                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_div(*v1))),
-                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
-                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).div(*v1))),
-                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f32))),
-                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Div, t0, t1).err(),
+            match rhs {
+                Value::Int(0) | Value::Float(0.0) => error::Error::zero_division().err(),
+                _ => match (self, rhs) {
+                    (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_div(*v1))),
+                    (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
+                    (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).div(*v1))),
+                    (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f32))),
+                    (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Div, t0, t1).err(),
+                },
             }
         }
     }

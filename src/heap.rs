@@ -45,7 +45,11 @@ pub mod heap {
             }
         }
 
-        pub fn get(&mut self, i: usize) -> &mut GCObject {
+        pub fn get(&self, i: usize) -> &GCObject {
+            &self.slots[i].item
+        }
+
+        pub fn get_mut(&mut self, i: usize) -> &mut GCObject {
             &mut self.slots[i].item
         }
 

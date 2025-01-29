@@ -32,27 +32,27 @@ fn main() {
         return;
     }
 
+    // println!("Execution took: {}ms", start.elapsed().as_millis());
+
+    // println!("{}", ast);
+
+    // for (idx, program) in env.segments().iter().enumerate() {
+    //     println!("[idx = {}]\n{:?}", idx, program);
+    // }
+
     if let Err(e) = env.execute(0) {
         e.dump_error(&env.sources);
         return;
     }
 
-    println!("Execution took: {}ms", start.elapsed().as_millis());
+    // for i in 0..10 {
+    //     println!("G({}) = {:?}", i, env.reg_global(i));
+    // }
 
-    println!("{}", ast);
-
-    for (idx, program) in env.segments().iter().enumerate() {
-        println!("[idx = {}]\n{:?}", idx, program);
-    }
-
-    for i in 0..10 {
-        println!("G({}) = {:?}", i, env.reg_global(i));
-    }
-
-    println!();
-    for i in 0..16 {
-        println!("R({}) = {:?}", i, env.reg(i));
-    }
+    // println!();
+    // for i in 0..16 {
+    //     println!("R({}) = {:?}", i, env.reg(i));
+    // }
 
     println!();
     env.heap.dump();
