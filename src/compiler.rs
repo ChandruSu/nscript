@@ -333,6 +333,7 @@ pub mod compiler {
         }
 
         fn compile_expr(&mut self, r: Reg, e: &AstNode) -> Result<&mut Self, error::Error> {
+            self.seg_mut().push_pos(e.pos());
             self.seg_mut().inc_slots(r + 1);
 
             match e.ast() {

@@ -2,7 +2,6 @@ pub mod vm {
     use core::fmt;
     use std::{
         collections::{BTreeMap, HashMap},
-        fmt::format,
         hash::{Hash, Hasher},
         ops, usize,
     };
@@ -230,9 +229,12 @@ pub mod vm {
                     .iter()
                     .enumerate()
                     .map(|(i, op)| format!(
-                        "{:02} {}\n",
+                        "{:02} {} {}\n",
                         i,
-                        format!("{:?}", op).to_lowercase().green()
+                        format!("{:?}", op).to_lowercase().green(),
+                        self.get_pos(i)
+                            .map(|p| format!("{}:{}", p.line + 1, p.column + 1))
+                            .unwrap_or_default()
                     ))
                     .collect::<Vec<String>>()
                     .join("")
@@ -256,6 +258,15 @@ pub mod vm {
                     Segment::native("__import".to_string(), 1, Self::import),
                 ],
             }
+        }
+
+        pub fn trace_pos(&self) -> Vec<io::Pos> {
+            self.calls
+                .iter()
+                .rev()
+                .filter_map(|call| self.get_segment(call.program).get_pos(call.pc))
+                .map(io::Pos::clone)
+                .collect()
         }
 
         fn import(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
@@ -631,13 +642,7 @@ pub mod vm {
                 Value::Int(v) => format!("{}", v),
                 Value::Float(v) => format!("{}", v),
                 Value::String(v) => format!("{}", v),
-                Value::Bool(v) => {
-                    if *v {
-                        "true".to_string()
-                    } else {
-                        "false".to_string()
-                    }
-                }
+                Value::Bool(v) => if *v { "true" } else { "false" }.to_string(),
                 Value::Func(f, _) => {
                     let s = env.get_segment(*f as usize);
                     format!("<function '{}' at {:p}>", s.name, s)

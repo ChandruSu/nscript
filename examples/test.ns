@@ -8,12 +8,19 @@ let s = import("./examples/math.ns").sum(1, 2);
 
 let f = fun() {
   return {
-    "test": 3,
-    "a": "Hello WOrld",
-    "john-stevens": true
+    "test": {
+			"f": fun() { std.print(1.0 / 0); }
+    }
   };
 };
 
-f()["test"] = 2;
 
-std.print(f());
+fun rec_err(n) {
+  if n == 0 {
+    return 1 / 0;
+  } else {
+    return n * rec_err(n - 1);
+  }
+}
+
+std.print(rec_err(7));

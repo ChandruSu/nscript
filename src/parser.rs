@@ -333,7 +333,7 @@ pub mod parser {
                     op @ (Op::Assign | Op::AddEq | Op::SubEq | Op::MulEq | Op::ModEq | Op::DivEq),
                 ) => Ok(*op),
                 Tk::Operator(op) => error::Error::non_assign_op(*op, self.head().pos).err(),
-                Tk::Semi => return Ok(id),
+                Tk::Semi if matches!(id.ast, Ast::Call(_, _)) => return Ok(id),
                 tk => error::Error::unexpected_token_any(tk, pos).err(),
             }?;
 

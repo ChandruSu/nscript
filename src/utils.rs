@@ -1,5 +1,5 @@
 pub mod io {
-    use std::{fs, str::Chars};
+    use std::{cmp, fs, str::Chars};
 
     use super::error;
 
@@ -53,15 +53,35 @@ pub mod io {
                 Ok(content) => {
                     self.sources.push(Source {
                         id: self.sources.len() as u32,
-                        src_content: content,
+                        src_content: content.replace("\t", "    "),
                         src_origin: fs::canonicalize(file_path)
-                            .map(|p| p.into_os_string().into_string().unwrap())
+                            .map(|p| {
+                                p.into_os_string()
+                                    .into_string()
+                                    .unwrap()
+                                    .trim_start_matches("\\\\?\\")
+                                    .to_string()
+                            })
                             .unwrap_or(file_path.to_string()),
                     });
 
                     Ok(self.sources.last().unwrap())
                 }
                 Err(_) => Err(error::Error::file_read_error(file_path)),
+            }
+        }
+
+        pub fn get_line(&self, pos: &Pos) -> Option<String> {
+            match self.get_source(pos.src_id) {
+                Some(src) => {
+                    let idx = pos.line_start as usize;
+                    let line_len = src.src_content[idx..]
+                        .find('\n')
+                        .unwrap_or(src.src_content.len() - idx - 1);
+                    let line_end = cmp::min(idx + cmp::min(line_len, 200), src.src_content.len());
+                    Some(src.src_content[idx..line_end].to_string())
+                }
+                None => None,
             }
         }
     }
@@ -288,7 +308,27 @@ pub mod error {
             }
         }
 
-        pub fn dump_error(&self, sources: &io::SourceManager) {
+        pub fn dump_stack_trace(&self, env: &vm::Env, pos0: io::Pos) {
+            let mut trace = env.trace_pos();
+            trace.insert(0, pos0);
+            trace.iter().for_each(|pos| {
+                eprintln!(
+                    "In file, at {} on line {}, column {}\n    {: >4} | {}\n         {}'",
+                    env.sources.get_source(pos.src_id).unwrap().get_origin(),
+                    pos.line + 1,
+                    pos.column + 1,
+                    pos.line + 1,
+                    env.sources.get_line(pos).unwrap_or_default(),
+                    "-".repeat(pos.column as usize + 2)
+                )
+            });
+        }
+
+        pub fn dump_error(&self, env: &vm::Env) {
+            if let Some(pos) = self.pos {
+                self.dump_stack_trace(env, pos);
+            }
+
             match &self.err_type {
                 ErrorType::IOError => {
                     eprintln!("IO ERROR: {}", self.msg)
@@ -298,7 +338,7 @@ pub mod error {
                         eprintln!(
                             "COMPILER ERROR: {} at {}:{}:{}",
                             self.msg,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )
@@ -309,7 +349,7 @@ pub mod error {
                         eprintln!(
                             "SYNTAX ERROR: {} at {}:{}:{}",
                             self.msg,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )
@@ -320,7 +360,7 @@ pub mod error {
                         eprintln!(
                             "NAME ERROR: {} at {}:{}:{}",
                             self.msg,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )
@@ -331,7 +371,7 @@ pub mod error {
                         eprintln!(
                             "TYPE ERROR: {} at {}:{}:{}",
                             self.msg,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )
@@ -342,8 +382,8 @@ pub mod error {
                         eprintln!(
                             "ARITHMETIC ERROR: {}, Value: {:?} at {}:{}:{}",
                             self.msg,
-                            v,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            v.to_string(env),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )
@@ -354,7 +394,7 @@ pub mod error {
                         eprintln!(
                             "ARGUMENT ERROR: {}, at {}:{}:{}",
                             self.msg,
-                            sources.get_source(pos.src_id).unwrap().get_origin(),
+                            env.sources.get_source(pos.src_id).unwrap().get_origin(),
                             pos.line + 1,
                             pos.column + 1
                         )

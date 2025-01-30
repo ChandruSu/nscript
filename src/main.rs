@@ -10,7 +10,7 @@ fn main() {
     let source = match env.sources.load_source_file("./examples/test.ns") {
         Ok(s) => s,
         Err(e) => {
-            e.dump_error(&env.sources);
+            e.dump_error(&env);
             return;
         }
     };
@@ -22,26 +22,26 @@ fn main() {
     let ast = match parser.parse() {
         Ok(ast) => ast,
         Err(e) => {
-            e.dump_error(&env.sources);
+            e.dump_error(&env);
             return;
         }
     };
 
     if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {
-        e.dump_error(&env.sources);
+        e.dump_error(&env);
         return;
     }
 
-    // println!("Execution took: {}ms", start.elapsed().as_millis());
+    println!("Execution took: {}ms", start.elapsed().as_millis());
 
     // println!("{}", ast);
 
-    // for (idx, program) in env.segments().iter().enumerate() {
-    //     println!("[idx = {}]\n{:?}", idx, program);
-    // }
+    for (idx, program) in env.segments().iter().enumerate() {
+        println!("[idx = {}]\n{:?}", idx, program);
+    }
 
     if let Err(e) = env.execute(0) {
-        e.dump_error(&env.sources);
+        e.dump_error(&env);
         return;
     }
 
@@ -54,7 +54,7 @@ fn main() {
     //     println!("R({}) = {:?}", i, env.reg(i));
     // }
 
-    println!();
-    env.heap.dump();
-    println!("Done");
+    // println!();
+    // env.heap.dump();
+    // println!("Done");
 }
