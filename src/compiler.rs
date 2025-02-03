@@ -1,9 +1,10 @@
 pub mod compiler {
     use crate::{
+        error,
         lexer::lexer::{self, Op},
         parser::parser::{self, Ast, AstNode},
-        utils::{error, io},
-        vm::vm,
+        utils::io,
+        vm::{Env, Segment, Value},
     };
     use std::{
         collections::{BTreeMap, HashMap},
@@ -53,14 +54,14 @@ pub mod compiler {
     }
 
     pub struct Compiler<'a> {
-        env: &'a mut vm::Env,
+        env: &'a mut Env,
         curr_seg: usize,
         loop_begins: Vec<usize>,
         end_jumps: Vec<usize>,
     }
 
     impl<'a> Compiler<'a> {
-        pub fn new(env: &'a mut vm::Env) -> Self {
+        pub fn new(env: &'a mut Env) -> Self {
             Self {
                 env,
                 curr_seg: 0,
@@ -69,15 +70,15 @@ pub mod compiler {
             }
         }
 
-        fn seg(&self) -> &vm::Segment {
+        fn seg(&self) -> &Segment {
             &self.env.segments()[self.curr_seg]
         }
 
-        fn seg_mut(&mut self) -> &mut vm::Segment {
+        fn seg_mut(&mut self) -> &mut Segment {
             &mut self.env.segments_mut()[self.curr_seg]
         }
 
-        fn global_seg(&self) -> &vm::Segment {
+        fn global_seg(&self) -> &Segment {
             &self.env.segments().iter().find(|s| s.is_global()).unwrap()
         }
 
@@ -239,7 +240,7 @@ pub mod compiler {
                     self.seg_mut().inc_slots(r + 2);
                     let k = self
                         .seg_mut()
-                        .storek(vm::Value::String(Box::new(e2.to_string())));
+                        .storek(Value::String(Box::new(e2.to_string())));
 
                     return Ok(self
                         .compile_expr(r, e1)?
@@ -474,17 +475,17 @@ pub mod compiler {
                 Ast::Null => self.with(Ins::LoadN(r)),
                 Ast::Bool(b) => self.with(Ins::LoadB(r, *b)),
                 Ast::Int(i) => {
-                    let k = self.seg_mut().storek(vm::Value::Int(*i));
+                    let k = self.seg_mut().storek(Value::Int(*i));
                     self.with(Ins::LoadK(r, k))
                 }
                 Ast::Float(f) => {
-                    let k = self.seg_mut().storek(vm::Value::Float(*f));
+                    let k = self.seg_mut().storek(Value::Float(*f));
                     self.with(Ins::LoadK(r, k))
                 }
                 Ast::String(s) => {
                     let k = self
                         .seg_mut()
-                        .storek(vm::Value::String(Box::new(s.to_string())));
+                        .storek(Value::String(Box::new(s.to_string())));
                     self.with(Ins::LoadK(r, k))
                 }
                 _ => unreachable!(),
@@ -534,7 +535,7 @@ pub mod compiler {
         fn compile_import(&mut self, r: Reg, path: &String) -> Result<&mut Self, error::Error> {
             let k = self
                 .seg_mut()
-                .storek(vm::Value::String(Box::new(path.to_string())));
+                .storek(Value::String(Box::new(path.to_string())));
             Ok(self.with(Ins::LoadK(r, k)).with(Ins::Import(r)))
         }
 
@@ -575,7 +576,7 @@ pub mod compiler {
         ) -> Result<&mut Self, error::Error> {
             let k = self
                 .seg_mut()
-                .storek(vm::Value::String(Box::new(e1.to_string())));
+                .storek(Value::String(Box::new(e1.to_string())));
 
             self.compile_expr(r, e0)?
                 .with(Ins::LoadK(r + 1, k))

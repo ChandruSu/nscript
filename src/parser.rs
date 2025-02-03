@@ -4,8 +4,9 @@ pub mod parser {
     use colored::Colorize;
 
     use crate::{
+        error,
         lexer::lexer::{self, Op, Tk},
-        utils::{error, io},
+        utils::io,
     };
 
     pub enum Ast {
@@ -37,10 +38,6 @@ pub mod parser {
     pub struct AstNode {
         ast: Ast,
         pos: io::Pos,
-    }
-
-    pub struct Parser<'a> {
-        lexer: &'a mut lexer::Lexer<'a>,
     }
 
     impl AstNode {
@@ -198,6 +195,10 @@ pub mod parser {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             writeln!(f, "Parse result - Abstract Syntax Tree:").and(self.print_tree(f, 0, 0, true))
         }
+    }
+
+    pub struct Parser<'a> {
+        lexer: &'a mut lexer::Lexer<'a>,
     }
 
     impl<'a> Parser<'a> {

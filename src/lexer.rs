@@ -2,8 +2,8 @@ pub mod lexer {
     use core::fmt;
     use std::str::Chars;
 
-    use crate::utils::{error, io};
-
+    use crate::error;
+    use crate::utils::io;
     pub static MAX_OP_PRECEDENCE: u8 = 10;
 
     #[derive(Debug, PartialEq, Clone, Copy)]

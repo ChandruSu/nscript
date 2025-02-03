@@ -3,7 +3,7 @@ use std::time::Instant;
 use ns::compiler::compiler;
 use ns::lexer::lexer::{self};
 use ns::parser::parser;
-use ns::vm::vm;
+use ns::vm;
 
 fn main() {
     let mut env = vm::Env::new();

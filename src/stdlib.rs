@@ -3,9 +3,8 @@ pub mod stdlib {
 
     use crate::{
         compiler::compiler::Reg,
-        heap::heap,
-        utils::error,
-        vm::vm::{self, NativeFnPtr},
+        error,
+        vm::{heap::GCObject, Env, NativeFnPtr, Segment, Value},
     };
 
     fn assert_arg_count(rec: usize, exp: usize) -> Result<(), error::Error> {
@@ -16,45 +15,42 @@ pub mod stdlib {
         }
     }
 
-    fn std_print(env: &mut vm::Env, arg0: usize, argc: usize) -> Result<vm::Value, error::Error> {
+    fn std_print(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
         assert_arg_count(argc, 1)?;
         println!("{}", env.reg(arg0).to_string(env));
-        Ok(vm::Value::Null)
+        Ok(Value::Null)
     }
 
-    fn std_typeof(env: &mut vm::Env, arg0: usize, argc: usize) -> Result<vm::Value, error::Error> {
+    fn std_typeof(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
         assert_arg_count(argc, 1)?;
-        Ok(vm::Value::from_string(env.reg(arg0).type_name()))
+        Ok(Value::from_string(env.reg(arg0).type_name()))
     }
 
-    fn std_len(env: &mut vm::Env, arg0: usize, argc: usize) -> Result<vm::Value, error::Error> {
+    fn std_len(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
         assert_arg_count(argc, 1)?;
-        env.reg(arg0)
-            .length(env)
-            .map(|len| vm::Value::Int(len as i32))
+        env.reg(arg0).length(env).map(|len| Value::Int(len as i32))
     }
 
-    fn std_str(env: &mut vm::Env, arg0: usize, argc: usize) -> Result<vm::Value, error::Error> {
+    fn std_str(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
         assert_arg_count(argc, 1)?;
-        Ok(vm::Value::String(Box::new(env.reg(arg0).to_string(env))))
+        Ok(Value::String(Box::new(env.reg(arg0).to_string(env))))
     }
 
-    fn form_module(env: &mut vm::Env, exports: Vec<(String, Reg, NativeFnPtr)>) -> usize {
+    fn form_module(env: &mut Env, exports: Vec<(String, Reg, NativeFnPtr)>) -> usize {
         let mut module = HashMap::new();
 
         for (fname, fargs, fptr) in exports {
             module.insert(
-                vm::Value::from_string(&fname),
-                vm::Value::Func(env.segments().len() as u32, 0),
+                Value::from_string(&fname),
+                Value::Func(env.segments().len() as u32, 0),
             );
-            env.segments_mut()
-                .push(vm::Segment::native(fname, fargs, fptr));
+            env.segments_mut().push(Segment::native(fname, fargs, fptr));
         }
 
-        env.heap.alloc(heap::GCObject::Object(module))
+        env.heap.alloc(GCObject::Object(module))
     }
 
-    pub fn load_std_into_env(env: &mut vm::Env) -> usize {
+    pub fn load_std_into_env(env: &mut Env) -> usize {
         form_module(
             env,
             vec![
