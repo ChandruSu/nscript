@@ -161,7 +161,7 @@ pub mod lexer {
             let tk = match c {
                 c if c.is_ascii_alphabetic() || c == '_' => self.extract_identifier(),
                 c if c.is_digit(10) => self.extract_number(),
-                '"' => self.extract_string(),
+                '"' => self.extract_string()?,
                 '#' => self.extract_comment(),
                 '{' => Tk::LeftBrace,
                 '}' => Tk::RightBrace,
@@ -294,15 +294,27 @@ pub mod lexer {
             }
         }
 
-        fn extract_string(&mut self) -> Tk {
+        fn extract_string(&mut self) -> Result<Tk, error::Error> {
             let mut buf = String::new();
 
             while self.lookahead_char != '"' && self.lookahead_char != '\0' {
-                buf.push(self.advance());
+                if self.lookahead_char == '\\' {
+                    self.advance();
+                    buf.push(match self.advance() {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        '"' => '"',
+                        '\\' => '\\',
+                        c => return error::Error::invalid_escape_char(c, self.cursor).err(),
+                    });
+                } else {
+                    buf.push(self.advance());
+                }
             }
 
             self.advance();
-            Tk::String(buf)
+            Ok(Tk::String(buf))
         }
 
         fn extract_comment(&mut self) -> Tk {

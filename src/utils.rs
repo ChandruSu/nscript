@@ -76,7 +76,7 @@ pub mod io {
                     let idx = pos.line_start as usize;
                     let line_len = src.src_content[idx..]
                         .find('\n')
-                        .unwrap_or(src.src_content.len() - idx - 1);
+                        .unwrap_or(src.src_content.len() - idx);
                     let line_end = cmp::min(idx + cmp::min(line_len, 200), src.src_content.len());
                     Some(src.src_content[idx..line_end].to_string())
                 }

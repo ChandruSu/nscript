@@ -4,7 +4,10 @@ pub mod stdlib {
     use crate::{
         compiler::compiler::Reg,
         error,
-        vm::{heap::GCObject, Env, NativeFnPtr, Segment, Value},
+        vm::{
+            heap::{Alloc, GCObject},
+            Env, NativeFnPtr, Segment, Value,
+        },
     };
 
     fn assert_arg_count(rec: usize, exp: usize) -> Result<(), error::Error> {
@@ -47,7 +50,7 @@ pub mod stdlib {
             env.segments_mut().push(Segment::native(fname, fargs, fptr));
         }
 
-        env.heap.alloc(GCObject::Object(module))
+        env.heap.alloc(GCObject::object(module))
     }
 
     pub fn load_std_into_env(env: &mut Env) -> usize {

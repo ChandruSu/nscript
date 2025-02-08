@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    heap::{GCObject, Heap},
+    heap::{Alloc, GCObject, Heap},
     segment::Segment,
     value::Value,
 };
@@ -59,7 +59,6 @@ impl Env {
     }
 
     fn import(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
-        // TODO: cache and return reimports
         let args = &self.registers[arg0..arg0 + argc];
 
         let path = match args.first() {
@@ -70,18 +69,19 @@ impl Env {
         if let Some(v) = self.import_cache.get(&path) {
             Ok(Value::Object(*v))
         } else if path == "std" {
+            // TODO: make this extendible
             let i = stdlib::load_std_into_env(self);
             self.import_cache.insert(path, i);
             Ok(Value::Object(i))
         } else {
             // TODO: Maybe spawn new env and for each global, pull env value and realloc on current env's heap
-            let new_main = Segment::empty("__start".to_string(), true);
-            let new_globals = vec![Value::Null; 128];
-            let new_registers = vec![Value::Null; 1024];
-            let old_globals = std::mem::replace(&mut self.globals, new_globals);
-            let old_registers = std::mem::replace(&mut self.registers, new_registers);
             let old_calls = std::mem::take(&mut self.calls);
-            let old_main = std::mem::replace(&mut self.segments[0], new_main);
+            let old_globals = std::mem::replace(&mut self.globals, vec![Value::Null; 128]);
+            let old_registers = std::mem::replace(&mut self.registers, vec![Value::Null; 1024]);
+            let old_main = std::mem::replace(
+                &mut self.segments[0],
+                Segment::empty("__start".to_string(), true),
+            );
 
             let src = self.sources.load_source_file(&path)?;
             let ast = &parser::Parser::new(&mut lexer::Lexer::new(src)).parse()?;
@@ -95,7 +95,7 @@ impl Env {
                 .map(|(k, v)| (Value::from_string(k), self.globals[*v as usize].clone()))
                 .collect();
 
-            let i = self.heap.alloc(GCObject::Object(exports));
+            let i = self.heap.alloc(GCObject::object(exports));
             self.import_cache.insert(path, i);
 
             self.calls = old_calls;
@@ -105,6 +105,10 @@ impl Env {
 
             Ok(Value::Object(i))
         }
+    }
+
+    fn gc(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
+        Ok(Value::Null)
     }
 
     pub fn new_seg(
@@ -250,8 +254,8 @@ impl Env {
                         reg[a as usize] = self.globals[b as usize].clone();
                     }
                     Ins::LoadU(a, b) => {
-                        reg[a as usize] = match self.heap.get(ci.closure) {
-                            GCObject::Closure(vec) => vec[b as usize].clone(),
+                        reg[a as usize] = match self.heap.access(ci.closure) {
+                            GCObject::Closure { mark: _, vals } => vals[b as usize].clone(),
                             _ => todo!(),
                         }
                     }
@@ -279,7 +283,7 @@ impl Env {
                             reg[a as usize] = Value::Func(
                                 *program,
                                 self.heap
-                                    .alloc(GCObject::Closure(reg[b as usize..c as usize].to_vec())),
+                                    .alloc(GCObject::closure(reg[b as usize..c as usize].to_vec())),
                             );
                         }
                         t0 => error::Error::uncallable_type(t0)
@@ -319,13 +323,15 @@ impl Env {
                     }
                     Ins::ObjNew(a) => {
                         reg[a as usize] =
-                            Value::Object(self.heap.alloc(GCObject::Object(HashMap::new())));
+                            Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
                     }
                     Ins::ObjGet(a, b, c) => {
                         match reg[b as usize] {
                             Value::Object(ptr) => {
-                                reg[a as usize] = match self.heap.get(ptr) {
-                                    GCObject::Object(m) => m[&reg[c as usize]].clone(),
+                                reg[a as usize] = match self.heap.access(ptr) {
+                                    GCObject::Object { mark: _, map } => {
+                                        map[&reg[c as usize]].clone()
+                                    }
                                     _ => todo!(),
                                 }
                             }
@@ -336,9 +342,9 @@ impl Env {
                         let k = reg[b as usize].clone();
                         let v = reg[c as usize].clone();
                         match reg[a as usize] {
-                            Value::Object(ptr) => match self.heap.get_mut(ptr) {
-                                GCObject::Object(m) => {
-                                    m.insert(k, v);
+                            Value::Object(ptr) => match self.heap.access_mut(ptr) {
+                                GCObject::Object { mark: _, map } => {
+                                    map.insert(k, v);
                                 }
                                 _ => todo!(),
                             },
@@ -365,9 +371,5 @@ impl Env {
             }
         }
         Ok(())
-    }
-
-    pub fn load(&mut self) -> Result<usize, error::Error> {
-        Ok(0)
     }
 }

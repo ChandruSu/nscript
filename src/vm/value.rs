@@ -5,7 +5,10 @@ use std::{
 
 use crate::{error, lexer::lexer};
 
-use super::{env::Env, heap::GCObject};
+use super::{
+    env::Env,
+    heap::{Alloc, GCObject},
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value {
@@ -72,11 +75,10 @@ impl Value {
                 let s = env.get_segment(*f as usize);
                 format!("<function '{}' at {:p}>", s.name(), s)
             }
-            Value::Object(v) => match env.heap.get(*v) {
-                GCObject::Object(hash_map) => format!(
+            Value::Object(v) => match env.heap.access(*v) {
+                GCObject::Object { mark: _, map } => format!(
                     "{{ {} }}",
-                    hash_map
-                        .iter()
+                    map.iter()
                         .map(|(k, v)| format!("{}: {}", k.to_repr(env), v.to_repr(env)))
                         .collect::<Vec<String>>()
                         .join(", ")
@@ -89,8 +91,8 @@ impl Value {
     pub fn length(&self, env: &Env) -> Result<usize, error::Error> {
         match self {
             Value::String(v) => Ok(v.len()),
-            Value::Object(v) => match env.heap.get(*v) {
-                GCObject::Object(v) => Ok(v.len()),
+            Value::Object(v) => match env.heap.access(*v) {
+                GCObject::Object { mark: _, map } => Ok(map.len()),
                 _ => error::Error::type_error(self, &Value::Object(0)).err(),
             },
             t1 => error::Error::type_error(self, t1).err(),
@@ -154,7 +156,6 @@ impl ops::Rem<&Value> for &Value {
 }
 
 impl ops::Div<&Value> for &Value {
-    // TODO: handle zero division error
     type Output = Result<Value, error::Error>;
     fn div(self, rhs: &Value) -> Self::Output {
         match rhs {

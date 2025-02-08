@@ -41,6 +41,14 @@ impl Error {
         }
     }
 
+    pub fn invalid_escape_char(c: char, pos: io::Pos) -> Self {
+        Self {
+            msg: format!("Invalid escape character in string: '\\{}'", c),
+            err_type: ErrorType::SyntaxError,
+            pos: Some(pos),
+        }
+    }
+
     pub fn unexpected_token(tk0: &lexer::Tk, tk1: &lexer::Tk, pos: io::Pos) -> Self {
         Self {
             msg: format!(
@@ -157,6 +165,17 @@ impl Error {
                 t1.type_name()
             ),
             err_type: ErrorType::TypeError(t1.type_name()),
+            pos: None,
+        }
+    }
+
+    pub fn unhashable_type(t0: &Value) -> Self {
+        Self {
+            msg: format!(
+                "Unhashable type detected, cannot be used as map key: Recieved {}",
+                t0.type_name(),
+            ),
+            err_type: ErrorType::TypeError(t0.type_name()),
             pos: None,
         }
     }
