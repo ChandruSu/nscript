@@ -7,7 +7,7 @@ use ns::vm;
 
 fn main() {
     let mut env = vm::Env::new();
-    let source = match env.sources.load_source_file("./examples/test.ns") {
+    let source = match env.sources.load_source_file("./examples/gc.ns") {
         Ok(s) => s,
         Err(e) => {
             e.dump_error(&env);
@@ -45,16 +45,17 @@ fn main() {
         return;
     }
 
-    // for i in 0..10 {
-    //     println!("G({}) = {:?}", i, env.reg_global(i));
-    // }
+    for i in 0..10 {
+        println!("G({}) = {:?}", i, env.reg_global(i));
+    }
 
-    // println!();
-    // for i in 0..16 {
-    //     println!("R({}) = {:?}", i, env.reg(i));
-    // }
+    println!();
+    for i in 0..16 {
+        println!("R({}) = {:?}", i, env.reg(i));
+    }
 
-    // println!();
-    // env.heap.dump();
-    // println!("Done");
+    println!();
+    env.heap.dump();
+
+    println!("Done");
 }

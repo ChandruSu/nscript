@@ -107,7 +107,26 @@ impl Env {
         }
     }
 
-    fn gc(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
+    pub fn gc(&mut self, _arg0: usize, _argc: usize) -> Result<Value, error::Error> {
+        let active_register_range = 0..self
+            .calls
+            .last()
+            .map(|call| call.sp + self.segments[call.program].slots() as usize)
+            .unwrap_or(0);
+
+        println!("{:?}", active_register_range);
+
+        for register in self.registers[active_register_range]
+            .iter()
+            .chain(self.globals.iter())
+        {
+            match register {
+                Value::Object(p) | Value::Func(_, p) => self.heap.mark(*p),
+                _ => continue,
+            };
+        }
+
+        self.heap.sweep();
         Ok(Value::Null)
     }
 

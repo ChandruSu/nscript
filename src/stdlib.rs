@@ -61,6 +61,7 @@ pub mod stdlib {
                 ("typeof".to_string(), 1, std_typeof),
                 ("len".to_string(), 1, std_len),
                 ("str".to_string(), 1, std_str),
+                ("gc".to_string(), 0, Env::gc),
             ],
         )
     }

@@ -23,11 +23,11 @@ impl GCObject {
     }
 
     pub fn object(map: HashMap<Value, Value>) -> Self {
-        Self::Object { mark: true, map }
+        Self::Object { mark: false, map }
     }
 
     pub fn closure(vals: Vec<Value>) -> Self {
-        Self::Closure { mark: true, vals }
+        Self::Closure { mark: false, vals }
     }
 
     pub fn mark(&mut self) {
@@ -42,7 +42,7 @@ impl GCObject {
         match self {
             Self::Closure { mark, vals: _ } => *mark = false,
             Self::Object { mark, map: _ } => *mark = false,
-            _ => unreachable!(),
+            _ => {}
         }
     }
 
@@ -105,14 +105,16 @@ impl Heap {
             _ => unreachable!(),
         };
 
-        for child in child_nodes {
-            self.mark(child);
+        for child in child_nodes.iter() {
+            self.mark(*child);
         }
     }
 
     pub fn sweep(&mut self) {
         for p in 0..self.slots.len() {
-            if !self.slots[p].marked() {
+            if self.slots[p].marked() {
+                self.slots[p].unmark();
+            } else {
                 self.free(p);
             }
         }
@@ -138,6 +140,7 @@ impl Alloc<usize> for Heap {
     }
 
     fn free(&mut self, ptr: usize) {
+        println!("Object at {} was freed!", ptr);
         self.slots[ptr] = GCObject::empty(self.head);
         self.head = ptr;
     }
