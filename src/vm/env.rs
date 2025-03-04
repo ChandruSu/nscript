@@ -344,6 +344,12 @@ impl Env {
                         reg[a as usize] =
                             Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
                     }
+                    Ins::ArrNew(a, n) => {
+                        reg[a as usize] = Value::Array(
+                            self.heap
+                                .alloc(GCObject::array(vec![Value::Null; n as usize])),
+                        );
+                    }
                     Ins::ObjGet(a, b, c) => {
                         match reg[b as usize] {
                             Value::Object(ptr) => {
@@ -351,6 +357,15 @@ impl Env {
                                     GCObject::Object { mark: _, map } => {
                                         map[&reg[c as usize]].clone()
                                     }
+                                    _ => todo!(),
+                                }
+                            }
+                            Value::Array(ptr) => {
+                                reg[a as usize] = match self.heap.access(ptr) {
+                                    GCObject::Array { mark: _, vec } => match &reg[c as usize] {
+                                        Value::Int(i) => vec[*i as usize].clone(),
+                                        _ => todo!(),
+                                    },
                                     _ => todo!(),
                                 }
                             }
@@ -365,6 +380,13 @@ impl Env {
                                 GCObject::Object { mark: _, map } => {
                                     map.insert(k, v);
                                 }
+                                _ => todo!(),
+                            },
+                            Value::Array(ptr) => match self.heap.access_mut(ptr) {
+                                GCObject::Array { mark: _, vec } => match k {
+                                    Value::Int(i) => vec[i as usize] = v,
+                                    _ => todo!(),
+                                },
                                 _ => todo!(),
                             },
                             _ => todo!(),

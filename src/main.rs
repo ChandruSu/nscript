@@ -7,7 +7,7 @@ use ns::vm;
 
 fn main() {
     let mut env = vm::Env::new();
-    let source = match env.sources.load_source_file("./examples/gc.ns") {
+    let source = match env.sources.load_source_file("./examples/array.ns") {
         Ok(s) => s,
         Err(e) => {
             e.dump_error(&env);

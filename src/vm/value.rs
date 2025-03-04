@@ -19,6 +19,7 @@ pub enum Value {
     String(Box<String>),
     Func(u32, usize),
     Object(usize),
+    Array(usize),
 }
 
 impl Value {
@@ -31,6 +32,7 @@ impl Value {
             Value::Func(_, _) => true,
             Value::String(v) => v.len() > 0,
             Value::Object(_) => true,
+            Value::Array(_) => true,
         }
     }
 
@@ -43,6 +45,7 @@ impl Value {
             Value::Func(_, _) => "Function",
             Value::String(_) => "String",
             Value::Object(_) => "Object",
+            Value::Array(_) => "Array",
         }
     }
 
@@ -75,6 +78,16 @@ impl Value {
                 let s = env.get_segment(*f as usize);
                 format!("<function '{}' at {:p}>", s.name(), s)
             }
+            Value::Array(v) => match env.heap.access(*v) {
+                GCObject::Array { mark: _, vec } => format!(
+                    "[{}]",
+                    vec.iter()
+                        .map(|v| v.to_repr(env))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ),
+                _ => unreachable!(),
+            },
             Value::Object(v) => match env.heap.access(*v) {
                 GCObject::Object { mark: _, map } => format!(
                     "{{ {} }}",
@@ -271,6 +284,10 @@ impl Hash for Value {
             Value::Object(o) => {
                 state.write_u8(6);
                 o.hash(state);
+            }
+            Value::Array(v) => {
+                state.write_u8(7);
+                v.hash(state);
             }
         }
     }

@@ -50,6 +50,7 @@ pub mod compiler {
         ObjIns(Reg, Reg, Reg),
         ObjGet(Reg, Reg, Reg),
         ObjNew(Reg),
+        ArrNew(Reg, Reg),
         Import(Reg),
     }
 
@@ -339,6 +340,7 @@ pub mod compiler {
 
             match e.ast() {
                 Ast::Object(vs) => self.compile_obj(r, vs),
+                Ast::Array(vs) => self.compile_array(r, vs, e.pos()),
                 Ast::Deref(e0, e1) => self.compile_deref(r, e0, e1),
                 Ast::Subscript(e0, e1) => self.compile_subscript(r, e0, e1),
                 Ast::Call(f, args) => self.compile_call(r, f, args),
@@ -549,6 +551,24 @@ pub mod compiler {
 
             for (k, v) in vs.iter() {
                 self.compile_expr(r + 1, k)?
+                    .compile_expr(r + 2, v)?
+                    .with(Ins::ObjIns(r, r + 1, r + 2));
+            }
+
+            Ok(self)
+        }
+
+        fn compile_array(
+            &mut self,
+            r: Reg,
+            vs: &Vec<AstNode>,
+            pos: io::Pos,
+        ) -> Result<&mut Self, error::Error> {
+            self.seg_mut().inc_slots(r + 2);
+            self.with(Ins::ArrNew(r, vs.len() as u16));
+
+            for (i, v) in vs.iter().enumerate() {
+                self.compile_literal(r + 1, &AstNode::new(Ast::Int(i as i32), pos))?
                     .compile_expr(r + 2, v)?
                     .with(Ins::ObjIns(r, r + 1, r + 2));
             }

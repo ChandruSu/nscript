@@ -12,6 +12,10 @@ pub enum GCObject {
         mark: bool,
         map: HashMap<Value, Value>,
     },
+    Array {
+        mark: bool,
+        vec: Vec<Value>,
+    },
     None {
         next: usize,
     },
@@ -26,6 +30,10 @@ impl GCObject {
         Self::Object { mark: false, map }
     }
 
+    pub fn array(vec: Vec<Value>) -> Self {
+        Self::Array { mark: false, vec }
+    }
+
     pub fn closure(vals: Vec<Value>) -> Self {
         Self::Closure { mark: false, vals }
     }
@@ -34,6 +42,7 @@ impl GCObject {
         match self {
             Self::Closure { mark, vals: _ } => *mark = true,
             Self::Object { mark, map: _ } => *mark = true,
+            Self::Array { mark, vec: _ } => *mark = true,
             _ => unreachable!(),
         }
     }
@@ -42,6 +51,7 @@ impl GCObject {
         match self {
             Self::Closure { mark, vals: _ } => *mark = false,
             Self::Object { mark, map: _ } => *mark = false,
+            Self::Array { mark, vec: _ } => *mark = false,
             _ => {}
         }
     }
@@ -50,6 +60,7 @@ impl GCObject {
         match self {
             Self::Closure { mark, vals: _ } => *mark,
             Self::Object { mark, map: _ } => *mark,
+            Self::Array { mark, vec: _ } => *mark,
             _ => true,
         }
     }
@@ -96,12 +107,14 @@ impl Heap {
         let get_ptr = |v: &Value| match v {
             Value::Func(_, p) => Some(*p),
             Value::Object(p) => Some(*p),
+            Value::Array(p) => Some(*p),
             _ => None,
         };
 
         let child_nodes: Vec<usize> = match &self.slots[ptr] {
             GCObject::Closure { mark: _, vals } => vals.iter().filter_map(get_ptr).collect(),
             GCObject::Object { mark: _, map } => map.values().filter_map(get_ptr).collect(),
+            GCObject::Array { mark: _, vec } => vec.iter().filter_map(get_ptr).collect(),
             _ => unreachable!(),
         };
 

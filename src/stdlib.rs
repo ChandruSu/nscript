@@ -39,6 +39,19 @@ pub mod stdlib {
         Ok(Value::String(Box::new(env.reg(arg0).to_string(env))))
     }
 
+    fn std_append(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
+        assert_arg_count(argc, 2)?;
+        let v = env.reg(arg0 + 1).clone();
+        match env.reg(arg0) {
+            Value::Array(arr) => match env.heap.access_mut(*arr) {
+                GCObject::Array { mark: _, vec } => vec.push(v),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+        Ok(Value::Null)
+    }
+
     fn form_module(env: &mut Env, exports: Vec<(String, Reg, NativeFnPtr)>) -> usize {
         let mut module = HashMap::new();
 
@@ -61,6 +74,7 @@ pub mod stdlib {
                 ("typeof".to_string(), 1, std_typeof),
                 ("len".to_string(), 1, std_len),
                 ("str".to_string(), 1, std_str),
+                ("append".to_string(), 2, std_append),
                 ("gc".to_string(), 0, Env::gc),
             ],
         )

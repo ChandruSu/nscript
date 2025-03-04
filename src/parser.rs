@@ -16,6 +16,7 @@ pub mod parser {
         Bool(bool),
         String(String),
         Object(Vec<(AstNode, AstNode)>),
+        Array(Vec<AstNode>),
         Reference(String),
         Block(Vec<AstNode>),
         TernaryExp(Box<AstNode>, Box<AstNode>, Box<AstNode>),
@@ -172,6 +173,13 @@ pub mod parser {
                         node.print_tree(f, stem, level + 1, i == v.len() - 1)?
                     }
 
+                    Ok(())
+                }
+                Ast::Array(vec) => {
+                    writeln!(f, "{}", "array-literal".green())?;
+                    for (i, v) in vec.iter().enumerate() {
+                        v.print_tree(f, stem, level + 1, i == vec.len() - 1)?;
+                    }
                     Ok(())
                 }
                 Ast::Object(vec) => {
@@ -469,6 +477,7 @@ pub mod parser {
                 Tk::If => self.parse_ternary(),
                 Tk::Fun => self.parse_function(true),
                 Tk::LeftBrace => self.parse_object(),
+                Tk::LeftBracket => self.parse_array(),
                 Tk::LeftParen => {
                     self.consume()?;
                     let node = self.parse_expression()?;
@@ -553,6 +562,22 @@ pub mod parser {
             let block = Box::new(self.parse_scoped_block()?);
 
             Ok(AstNode::new(Ast::FuncDef(id, args, block), pos))
+        }
+
+        fn parse_array(&mut self) -> Result<AstNode, error::Error> {
+            let pos = self.expect(Tk::LeftBracket)?.pos;
+            let mut values = Vec::<AstNode>::new();
+
+            if !matches!(self.head().tk, Tk::RightParen) {
+                values.push(self.parse_expression()?);
+
+                while self.consume_if(Tk::Comma)? {
+                    values.push(self.parse_expression()?);
+                }
+            }
+
+            self.expect(Tk::RightBracket)
+                .map(|_| AstNode::new(Ast::Array(values), pos))
         }
 
         fn parse_object(&mut self) -> Result<AstNode, error::Error> {

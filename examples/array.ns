@@ -1,0 +1,10 @@
+
+let std = import("std");
+
+let x = [1, 2, 3];
+
+std.append(x, 5);
+
+std.print(x);
+std.print(x[2]);
+
