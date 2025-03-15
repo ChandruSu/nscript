@@ -568,7 +568,7 @@ pub mod parser {
             let pos = self.expect(Tk::LeftBracket)?.pos;
             let mut values = Vec::<AstNode>::new();
 
-            if !matches!(self.head().tk, Tk::RightParen) {
+            if !matches!(self.head().tk, Tk::RightBracket) {
                 values.push(self.parse_expression()?);
 
                 while self.consume_if(Tk::Comma)? {

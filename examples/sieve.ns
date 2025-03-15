@@ -1,0 +1,37 @@
+
+let std = import("std");
+
+let N = 100000;
+let x = [];
+
+let i = 0;
+while i < N {
+  std.append(x, true);
+  i += 1;
+}
+
+i = 2;
+while i * i < N {
+  if !x[i] {
+    i += 1;
+    continue;
+  }
+  let j = 2 * i;
+  
+  while j < N {
+    x[j] = false;
+    j += i;
+  }
+
+  i += 1;
+}
+
+std.print("Primes until: " + std.str(N));
+
+i = 0;
+while i < N {
+  if x[i] {
+    std.print(i);
+  }
+  i += 1;
+}

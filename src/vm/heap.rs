@@ -74,10 +74,13 @@ pub trait Alloc<P> {
     fn alloc(&mut self, value: GCObject) -> P;
 
     fn free(&mut self, ptr: P);
+
+    fn stress(&self) -> f32;
 }
 
 pub struct Heap {
     slots: Vec<GCObject>,
+    occupied: usize,
     head: usize,
 }
 
@@ -85,6 +88,7 @@ impl Heap {
     pub fn new(capacity: usize) -> Self {
         Self {
             head: 0,
+            occupied: 0,
             slots: (0..capacity).map(|i| GCObject::empty(i + 1)).collect(),
         }
     }
@@ -149,12 +153,13 @@ impl Alloc<usize> for Heap {
         };
 
         self.slots[pos] = value;
+        self.occupied += 1;
         pos
     }
 
     fn free(&mut self, ptr: usize) {
-        println!("Object at {} was freed!", ptr);
         self.slots[ptr] = GCObject::empty(self.head);
+        self.occupied -= 1;
         self.head = ptr;
     }
 
@@ -164,5 +169,9 @@ impl Alloc<usize> for Heap {
 
     fn access_mut(&mut self, ptr: usize) -> &mut GCObject {
         &mut self.slots[ptr]
+    }
+
+    fn stress(&self) -> f32 {
+        self.occupied as f32 / self.slots.len() as f32
     }
 }

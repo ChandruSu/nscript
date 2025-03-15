@@ -8,12 +8,21 @@ fun hi() {
     };
 }
 
+fun mul(x) {
+    return fun(y) {
+        return x * y;
+    };
+}
+
 # object will be collected
 std.print(hi().a);
 
 # object will not be collected
 let x = hi();
+x.a = 4;
 
 std.print(x.a);
+
+std.print(mul(2)(5));
 
 std.gc();

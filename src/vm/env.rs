@@ -114,8 +114,6 @@ impl Env {
             .map(|call| call.sp + self.segments[call.program].slots() as usize)
             .unwrap_or(0);
 
-        println!("{:?}", active_register_range);
-
         for register in self.registers[active_register_range]
             .iter()
             .chain(self.globals.iter())
@@ -170,6 +168,12 @@ impl Env {
 
     pub fn reg_global(&self, i: usize) -> &Value {
         &self.globals[i]
+    }
+
+    pub fn last_call_pos(&self) -> Option<&io::Pos> {
+        self.calls
+            .last()
+            .and_then(|call| self.segments[call.program].get_pos(call.pc))
     }
 
     pub fn execute(&mut self, program: usize) -> Result<(), error::Error> {
@@ -275,7 +279,7 @@ impl Env {
                     Ins::LoadU(a, b) => {
                         reg[a as usize] = match self.heap.access(ci.closure) {
                             GCObject::Closure { mark: _, vals } => vals[b as usize].clone(),
-                            _ => todo!(),
+                            _ => unreachable!("value-pointer heap-object type mismatch"),
                         }
                     }
                     Ins::LoadK(a, b) => {
@@ -351,45 +355,55 @@ impl Env {
                         );
                     }
                     Ins::ObjGet(a, b, c) => {
-                        match reg[b as usize] {
+                        match &reg[b as usize] {
                             Value::Object(ptr) => {
-                                reg[a as usize] = match self.heap.access(ptr) {
+                                reg[a as usize] = match self.heap.access(*ptr) {
                                     GCObject::Object { mark: _, map } => {
                                         map[&reg[c as usize]].clone()
                                     }
-                                    _ => todo!(),
+                                    _ => unreachable!("value-pointer heap-object type mismatch"),
                                 }
                             }
                             Value::Array(ptr) => {
-                                reg[a as usize] = match self.heap.access(ptr) {
+                                reg[a as usize] = match self.heap.access(*ptr) {
                                     GCObject::Array { mark: _, vec } => match &reg[c as usize] {
-                                        Value::Int(i) => vec[*i as usize].clone(),
-                                        _ => todo!(),
+                                        Value::Int(i) if 0 <= *i && (*i as usize) < vec.len() => {
+                                            vec[*i as usize].clone()
+                                        }
+                                        Value::Int(i) => {
+                                            error::Error::array_index_error(*i as u32).err()?
+                                        }
+                                        v => error::Error::type_error(&v, &Value::Int(0)).err()?,
                                     },
-                                    _ => todo!(),
+                                    _ => unreachable!("value-pointer heap-object type mismatch"),
                                 }
                             }
-                            _ => todo!(),
+                            v => error::Error::type_error_any(&v).err()?,
                         };
                     }
                     Ins::ObjIns(a, b, c) => {
                         let k = reg[b as usize].clone();
                         let v = reg[c as usize].clone();
-                        match reg[a as usize] {
-                            Value::Object(ptr) => match self.heap.access_mut(ptr) {
+                        match &reg[a as usize] {
+                            Value::Object(ptr) => match self.heap.access_mut(*ptr) {
                                 GCObject::Object { mark: _, map } => {
                                     map.insert(k, v);
                                 }
-                                _ => todo!(),
+                                _ => unreachable!("value-pointer heap-object type mismatch"),
                             },
-                            Value::Array(ptr) => match self.heap.access_mut(ptr) {
+                            Value::Array(ptr) => match self.heap.access_mut(*ptr) {
                                 GCObject::Array { mark: _, vec } => match k {
-                                    Value::Int(i) => vec[i as usize] = v,
-                                    _ => todo!(),
+                                    Value::Int(i) if 0 <= i && (i as usize) < vec.len() => {
+                                        vec[i as usize] = v
+                                    }
+                                    Value::Int(i) => {
+                                        error::Error::array_index_error(i as u32).err()?
+                                    }
+                                    v => error::Error::type_error(&v, &Value::Int(0)).err()?,
                                 },
-                                _ => todo!(),
+                                _ => unreachable!("value-pointer heap-object type mismatch"),
                             },
-                            _ => todo!(),
+                            v => error::Error::type_error_any(&v).err()?,
                         }
                     }
                     Ins::Import(a) => {
@@ -402,7 +416,7 @@ impl Env {
                             pc: 0,
                             sp,
                             retloc,
-                            program: 1,
+                            program: 1, // TODO
                             closure: 0,
                         });
                         continue 'next_call;

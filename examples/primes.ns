@@ -1,4 +1,6 @@
 
+let std = import("std");
+
 fun is_prime(n) {
     let i = 2;
     while i < n {
@@ -23,4 +25,6 @@ fun find_prime(n) {
     return p;
 }
 
-let prime_10 = find_prime(1000);
+let prime = find_prime(1000);
+
+std.print(prime);

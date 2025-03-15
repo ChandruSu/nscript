@@ -1,0 +1,28 @@
+
+let std = import("std");
+let math = import("./examples/math.ns");
+
+let x = math.sqr(7);
+let s = import("./examples/math.ns").sum(1, 2);
+
+
+let f = fun() {
+  return {
+    "test": {
+			"f": fun() { std.print(1.0); }
+    }
+  };
+};
+
+
+fun rec_err(n) {
+  if n == 0 {
+    return 1 / 0;
+  } else {
+    return n * rec_err(n - 1);
+  }
+}
+
+std.print(rec_err(7));
+
+std.print("Hello \n world!");

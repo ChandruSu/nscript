@@ -7,7 +7,7 @@ use ns::vm;
 
 fn main() {
     let mut env = vm::Env::new();
-    let source = match env.sources.load_source_file("./examples/array.ns") {
+    let source = match env.sources.load_source_file("./examples/test.ns") {
         Ok(s) => s,
         Err(e) => {
             e.dump_error(&env);
@@ -32,18 +32,22 @@ fn main() {
         return;
     }
 
-    println!("Execution took: {}ms", start.elapsed().as_millis());
-
-    // println!("{}", ast);
+    println!("{}", ast);
 
     for (idx, program) in env.segments().iter().enumerate() {
         println!("[idx = {}]\n{:?}", idx, program);
     }
 
+    println!("<=== STD OUT ===>");
+
     if let Err(e) = env.execute(0) {
         e.dump_error(&env);
         return;
     }
+
+    println!("<===============>");
+
+    println!("Execution took: {}ms", start.elapsed().as_millis());
 
     for i in 0..10 {
         println!("G({}) = {:?}", i, env.reg_global(i));
@@ -55,7 +59,7 @@ fn main() {
     }
 
     println!();
-    env.heap.dump();
+    // env.heap.dump();
 
     println!("Done");
 }

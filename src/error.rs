@@ -12,6 +12,7 @@ pub enum ErrorType {
     TypeError(&'static str),
     ArithmeticError(Value),
     ArgumentError(u32, u32),
+    IndexError(u32),
 }
 
 pub struct Error {
@@ -157,6 +158,14 @@ impl Error {
         }
     }
 
+    pub fn unexpected_null() -> Self {
+        Self {
+            msg: format!("Recieved unexpected 'null' value"),
+            err_type: ErrorType::TypeError("null"),
+            pos: None,
+        }
+    }
+
     pub fn type_error(t0: &Value, t1: &Value) -> Self {
         Self {
             msg: format!(
@@ -165,6 +174,14 @@ impl Error {
                 t1.type_name()
             ),
             err_type: ErrorType::TypeError(t1.type_name()),
+            pos: None,
+        }
+    }
+
+    pub fn type_error_any(t0: &Value) -> Self {
+        Self {
+            msg: format!("Unexpected type recieved: Recieved {}", t0.type_name()),
+            err_type: ErrorType::TypeError(t0.type_name()),
             pos: None,
         }
     }
@@ -236,9 +253,29 @@ impl Error {
         }
     }
 
+    pub fn array_length_error(len: u32) -> Self {
+        Self {
+            msg: format!("Invalid array length: {}", len,),
+            err_type: ErrorType::IndexError(len),
+            pos: None,
+        }
+    }
+
+    pub fn array_index_error(idx: u32) -> Self {
+        Self {
+            msg: format!("Invalid index: {}", idx,),
+            err_type: ErrorType::IndexError(idx),
+            pos: None,
+        }
+    }
+
     pub fn dump_stack_trace(&self, env: &Env, pos0: io::Pos) {
         let mut trace = env.trace_pos();
-        trace.insert(0, pos0);
+        match trace.first() {
+            Some(p) if *p == pos0 => {}
+            _ => trace.insert(0, pos0),
+        };
+
         trace.iter().for_each(|pos| {
             eprintln!(
                 "In file, at {} on line {}, column {}\n    {: >4} | {}\n         {}'",
@@ -321,6 +358,17 @@ impl Error {
                 if let Some(pos) = self.pos {
                     eprintln!(
                         "ARGUMENT ERROR: {}, at {}:{}:{}",
+                        self.msg,
+                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
+                        pos.line + 1,
+                        pos.column + 1
+                    )
+                }
+            }
+            ErrorType::IndexError(_) => {
+                if let Some(pos) = self.pos {
+                    eprintln!(
+                        "INDEX ERROR: {}, at {}:{}:{}",
                         self.msg,
                         env.sources.get_source(pos.src_id).unwrap().get_origin(),
                         pos.line + 1,

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     hash::{Hash, Hasher},
     ops,
 };
@@ -60,14 +61,18 @@ impl Value {
         Value::String(Box::new(s.to_string()))
     }
 
-    pub fn to_repr(&self, env: &Env) -> String {
+    pub fn to_repr(&self, env: &Env, visited: &mut HashSet<usize>) -> String {
         match self {
             Value::String(v) => format!("'{}'", v),
-            _ => self.to_string(env),
+            _ => self.to_string_safe(env, visited),
         }
     }
 
     pub fn to_string(&self, env: &Env) -> String {
+        self.to_string_safe(env, &mut HashSet::new())
+    }
+
+    fn to_string_safe(&self, env: &Env, visited: &mut HashSet<usize>) -> String {
         match self {
             Value::Null => "null".to_string(),
             Value::Int(v) => format!("{}", v),
@@ -78,36 +83,50 @@ impl Value {
                 let s = env.get_segment(*f as usize);
                 format!("<function '{}' at {:p}>", s.name(), s)
             }
-            Value::Array(v) => match env.heap.access(*v) {
-                GCObject::Array { mark: _, vec } => format!(
-                    "[{}]",
-                    vec.iter()
-                        .map(|v| v.to_repr(env))
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ),
-                _ => unreachable!(),
-            },
-            Value::Object(v) => match env.heap.access(*v) {
-                GCObject::Object { mark: _, map } => format!(
-                    "{{ {} }}",
-                    map.iter()
-                        .map(|(k, v)| format!("{}: {}", k.to_repr(env), v.to_repr(env)))
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ),
-                _ => unreachable!(),
-            },
+            Value::Array(v) if visited.contains(v) => "[...]".to_string(),
+            Value::Object(v) if visited.contains(v) => "{ ... }".to_string(),
+            Value::Array(v) => {
+                visited.insert(*v);
+                match env.heap.access(*v) {
+                    GCObject::Array { mark: _, vec } => format!(
+                        "[{}]",
+                        vec.iter()
+                            .map(|v| v.to_repr(env, visited))
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    ),
+                    _ => unreachable!("value-pointer heap-object type mismatch"),
+                }
+            }
+            Value::Object(v) => {
+                visited.insert(*v);
+                match env.heap.access(*v) {
+                    GCObject::Object { mark: _, map } => format!(
+                        "{{ {} }}",
+                        map.iter()
+                            .map(|(k, v)| format!(
+                                "{}: {}",
+                                k.to_repr(env, visited),
+                                v.to_repr(env, visited)
+                            ))
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    ),
+                    _ => unreachable!("value-pointer heap-object type mismatch"),
+                }
+            }
         }
     }
 
     pub fn length(&self, env: &Env) -> Result<usize, error::Error> {
         match self {
             Value::String(v) => Ok(v.len()),
-            Value::Object(v) => match env.heap.access(*v) {
+            Value::Object(p) | Value::Array(p) => match env.heap.access(*p) {
+                GCObject::Array { mark: _, vec } => Ok(vec.len()),
                 GCObject::Object { mark: _, map } => Ok(map.len()),
-                _ => error::Error::type_error(self, &Value::Object(0)).err(),
+                _ => unreachable!("value-pointer heap-object type mismatch"),
             },
+            Value::Null => error::Error::unexpected_null().err(),
             t1 => error::Error::type_error(self, t1).err(),
         }
     }

@@ -1,28 +1,14 @@
-
 let std = import("std");
-let math = import("./examples/math.ns");
 
-let x = math.sqr(7);
-let s = import("./examples/math.ns").sum(1, 2);
+let data = [1, 2, 3, 4, 5];
+let data1 = { "a": 10, "b": 3 };
 
+std.print(std.remove(data, 3));
+std.print(std.remove(data1, "b"));
+std.insert(data, 2, 100);
+std.insert(data1, "d", 101);
 
-let f = fun() {
-  return {
-    "test": {
-			"f": fun() { std.print(1.0); }
-    }
-  };
-};
-
-
-fun rec_err(n) {
-  if n == 0 {
-    return 1;
-  } else {
-    return n * rec_err(n - 1);
-  }
-}
-
-std.print(rec_err(7));
-
-std.print("Hello \n world!");
+std.print(data);
+std.print(data1);
+std.remove(data1, "c");
+std.print(data1);
