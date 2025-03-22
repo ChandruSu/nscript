@@ -122,8 +122,8 @@ impl Heap {
             _ => unreachable!(),
         };
 
-        for child in child_nodes.iter() {
-            self.mark(*child);
+        for &child in child_nodes.iter() {
+            self.mark(child);
         }
     }
 

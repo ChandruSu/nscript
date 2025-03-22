@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use colored::Colorize;
 
 use crate::{
-    compiler::compiler::{Ins, Reg},
+    backend::opcodes::{Ins, Reg},
     error,
     utils::io,
 };

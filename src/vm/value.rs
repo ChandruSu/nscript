@@ -4,7 +4,7 @@ use std::{
     ops,
 };
 
-use crate::{error, lexer::lexer};
+use crate::{error, frontend::operator};
 
 use super::{
     env::Env,
@@ -53,7 +53,7 @@ impl Value {
     pub fn bit_flip(&self) -> Result<Self, error::Error> {
         match self {
             Value::Int(v) => Ok(Value::Int(!v)),
-            t0 => error::Error::op_type_mismatch_un(lexer::Op::BitNot, t0).err(),
+            t0 => error::Error::op_type_mismatch_un(operator::Op::BitNot, t0).err(),
         }
     }
 
@@ -143,7 +143,7 @@ impl ops::Add<&Value> for &Value {
             (Value::String(v0), Value::String(v1)) => {
                 Ok(Value::String(Box::new(v0.to_string() + v1)))
             }
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Add, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Add, t0, t1).err(),
         }
     }
 }
@@ -156,7 +156,7 @@ impl ops::Sub<&Value> for &Value {
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.sub(*v0))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).sub(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.sub((*v1) as f32))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Sub, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Sub, t0, t1).err(),
         }
     }
 }
@@ -169,7 +169,7 @@ impl ops::Mul<&Value> for &Value {
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.mul(*v0))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).mul(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.mul((*v1) as f32))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Mul, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mul, t0, t1).err(),
         }
     }
 }
@@ -182,7 +182,7 @@ impl ops::Rem<&Value> for &Value {
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.rem(*v0))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).rem(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f32))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Mod, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mod, t0, t1).err(),
         }
     }
 }
@@ -197,7 +197,7 @@ impl ops::Div<&Value> for &Value {
                 (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
                 (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).div(*v1))),
                 (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f32))),
-                (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Div, t0, t1).err(),
+                (t0, t1) => error::Error::op_type_mismatch(operator::Op::Div, t0, t1).err(),
             },
         }
     }
@@ -208,7 +208,7 @@ impl ops::BitAnd<&Value> for &Value {
     fn bitand(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitand(*v1))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitAnd, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::BitAnd, t0, t1).err(),
         }
     }
 }
@@ -218,7 +218,7 @@ impl ops::BitOr<&Value> for &Value {
     fn bitor(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitor(*v1))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitOr, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::BitOr, t0, t1).err(),
         }
     }
 }
@@ -228,7 +228,7 @@ impl ops::BitXor<&Value> for &Value {
     fn bitxor(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.bitxor(*v1))),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::BitXor, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::BitXor, t0, t1).err(),
         }
     }
 }
@@ -241,7 +241,7 @@ impl ops::Shl<&Value> for &Value {
                 Ok(Value::Int(v0.wrapping_shl(*v1 as u32)))
             }
             (Value::Int(_), Value::Int(v1)) => error::Error::negative_shift(*v1).err(),
-            (t0, t1) => error::Error::op_type_mismatch(lexer::Op::Shl, t0, t1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Shl, t0, t1).err(),
         }
     }
 }
@@ -252,7 +252,7 @@ impl ops::Neg for &Value {
         match self {
             Value::Int(i) => Ok(Value::Int(-*i)),
             Value::Float(i) => Ok(Value::Float(-*i)),
-            t0 => error::Error::op_type_mismatch_un(lexer::Op::Sub, t0).err(),
+            t0 => error::Error::op_type_mismatch_un(operator::Op::Sub, t0).err(),
         }
     }
 }

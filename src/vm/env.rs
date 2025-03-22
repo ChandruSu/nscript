@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
-    compiler::compiler::{self, Ins, Reg},
+    backend::{
+        compiler,
+        opcodes::{Ins, Reg},
+        stdlib,
+    },
     error,
-    lexer::lexer,
-    parser::parser,
-    stdlib::stdlib,
+    frontend::{lexer, parser},
     utils::io,
 };
 
@@ -133,7 +135,7 @@ impl Env {
         name: String,
         global: bool,
         slots: Reg,
-        bytecode: Vec<compiler::Ins>,
+        bytecode: Vec<Ins>,
         constants: Vec<Value>,
         symbols: HashMap<String, Reg>,
         upvals: HashMap<String, Reg>,

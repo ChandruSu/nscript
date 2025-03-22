@@ -1,5 +1,6 @@
 use crate::{
-    lexer::lexer,
+    frontend::lexer,
+    frontend::operator::Op,
     utils::io,
     vm::{Env, Value},
 };
@@ -85,7 +86,7 @@ impl Error {
         }
     }
 
-    pub fn non_unary_op(op: lexer::Op, pos: io::Pos) -> Self {
+    pub fn non_unary_op(op: Op, pos: io::Pos) -> Self {
         Self {
             msg: format!(
                 "Incorrect operator found: '{}', expected valid unary operator",
@@ -96,7 +97,7 @@ impl Error {
         }
     }
 
-    pub fn non_assign_op(op: lexer::Op, pos: io::Pos) -> Self {
+    pub fn non_assign_op(op: Op, pos: io::Pos) -> Self {
         Self {
             msg: format!(
                 "Incorrect operator found: '{}', expected valid assignment operator",
@@ -197,7 +198,7 @@ impl Error {
         }
     }
 
-    pub fn op_type_mismatch_un(op: lexer::Op, t0: &Value) -> Self {
+    pub fn op_type_mismatch_un(op: Op, t0: &Value) -> Self {
         Self {
             msg: format!("Cannot apply operation '{}' to type {}", op, t0.type_name(),),
             err_type: ErrorType::TypeError(t0.type_name()),
@@ -205,7 +206,7 @@ impl Error {
         }
     }
 
-    pub fn op_type_mismatch(op: lexer::Op, t0: &Value, t1: &Value) -> Self {
+    pub fn op_type_mismatch(op: Op, t0: &Value, t1: &Value) -> Self {
         Self {
             msg: format!(
                 "Cannot apply operation '{}' between types {} and {}",

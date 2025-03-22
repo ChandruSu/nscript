@@ -1,13 +1,18 @@
 use std::time::Instant;
 
-use ns::compiler::compiler;
-use ns::lexer::lexer::{self};
-use ns::parser::parser;
+use clap::Parser;
+use ns::backend::compiler;
+use ns::frontend::lexer::{self};
+use ns::frontend::parser::{self};
 use ns::vm;
 
+use ns::cli::Cli;
+
 fn main() {
+    let args = Cli::parse();
+
     let mut env = vm::Env::new();
-    let source = match env.sources.load_source_file("./examples/test.ns") {
+    let source = match env.sources.load_source_file(&args.file_name) {
         Ok(s) => s,
         Err(e) => {
             e.dump_error(&env);

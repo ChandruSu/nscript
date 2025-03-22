@@ -15,14 +15,14 @@ fun mul(x) {
 }
 
 # object will be collected
-std.print(hi().a);
+std.println(hi().a);
 
 # object will not be collected
 let x = hi();
 x.a = 4;
 
-std.print(x.a);
+std.println(x.a);
 
-std.print(mul(2)(5));
+std.println(mul(2)(5));
 
 std.gc();

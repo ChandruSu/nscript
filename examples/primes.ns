@@ -27,4 +27,4 @@ fun find_prime(n) {
 
 let prime = find_prime(1000);
 
-std.print(prime);
+std.println(prime);
