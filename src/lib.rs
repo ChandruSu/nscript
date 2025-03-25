@@ -1,8 +1,11 @@
-pub mod backend;
-pub mod cli;
+mod backend;
 pub mod error;
-pub mod frontend;
-pub mod interpreter;
-pub mod utils;
-pub mod vm;
+mod frontend;
+mod interpreter;
+mod utils;
+mod vm;
+
 pub use interpreter::Interpreter;
+pub use vm::Env;
+pub use vm::ModuleFnRecord;
+pub use vm::Value;

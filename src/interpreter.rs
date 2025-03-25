@@ -1,7 +1,10 @@
 use std::{
     collections::HashSet,
     io::{self, Write},
+    time::Instant,
 };
+
+use colored::Colorize;
 
 use crate::{
     backend::compiler::Compiler,
@@ -33,14 +36,65 @@ impl Interpreter {
         &self.env
     }
 
+    pub fn environment_mut(&mut self) -> &mut Env {
+        &mut self.env
+    }
+
+    fn run(&mut self, source_id: u32) -> Result<(), error::Error> {
+        let src = self.env.sources.get_source(source_id).unwrap();
+
+        if !self.debug && !self.verbose {
+            Ok(src)
+                .and_then(|src| Parser::new(&mut Lexer::new(src)).parse())
+                .and_then(|ast| Compiler::new(&mut self.env).compile(&ast).map(drop))
+                .and_then(|_| self.env.execute(0))
+        } else {
+            let mut start = Instant::now();
+
+            let ast = Parser::new(&mut Lexer::new(src)).parse()?;
+            if self.verbose {
+                println!(
+                    "[{}] Parsing took: {} microseconds",
+                    "verbose".purple(),
+                    start.elapsed().as_micros()
+                );
+            }
+
+            if self.debug {
+                println!("[{}] {}", "debug".red(), ast);
+            }
+
+            start = Instant::now();
+            Compiler::new(&mut self.env).compile(&ast).map(drop)?;
+            if self.verbose {
+                println!(
+                    "[{}] Bytecode compilation took: {} microseconds",
+                    "verbose".purple(),
+                    start.elapsed().as_micros()
+                );
+            }
+
+            start = Instant::now();
+            let result = self.env.execute(0);
+            if self.verbose {
+                println!(
+                    "[{}] Execution took: {} ms",
+                    "verbose".purple(),
+                    start.elapsed().as_millis()
+                );
+            }
+
+            result
+        }
+    }
+
     pub fn execute_from_file(&mut self, file_path: &str) -> Result<(), error::Error> {
         self.env.get_segment_mut(0).clear_definition();
         self.env
             .sources
             .load_source_file(file_path)
-            .and_then(|src| Parser::new(&mut Lexer::new(src)).parse())
-            .and_then(|ast| Compiler::new(&mut self.env).compile(&ast).map(drop))
-            .and_then(|_| self.env.execute(0))
+            .map(|src| src.id())
+            .and_then(|src_id| self.run(src_id))
     }
 
     pub fn execute_from_string(&mut self, source: &str) -> Result<(), error::Error> {
@@ -48,9 +102,8 @@ impl Interpreter {
         self.env
             .sources
             .load_source_string(source)
-            .and_then(|src| Parser::new(&mut Lexer::new(src)).parse())
-            .and_then(|ast| Compiler::new(&mut self.env).compile(&ast).map(drop))
-            .and_then(|_| self.env.execute(0))
+            .map(|src| src.id())
+            .and_then(|src_id| self.run(src_id))
     }
 
     pub fn evaluate_from_string(&mut self, source: &str) -> Result<vm::Value, error::Error> {
@@ -58,9 +111,8 @@ impl Interpreter {
         self.env
             .sources
             .load_source_string(&format!("_ = {};", source))
-            .and_then(|src| Parser::new(&mut Lexer::new(src)).parse())
-            .and_then(|ast| Compiler::new(&mut self.env).compile(&ast).map(drop))
-            .and_then(|_| self.env.execute(0))
+            .map(|src| src.id())
+            .and_then(|src_id| self.run(src_id))
             .map(|_| self.env.reg(0).clone())
     }
 
@@ -68,7 +120,7 @@ impl Interpreter {
         println!(
             "Welcome to the NewScript REPL. To execute statements, type command, terminate \
              with ';' and hit enter. To evaluate expressions, prefix commands with '=' (no \
-             semicolon needed)"
+             semicolon needed). Type 'exit' to kill REPL."
         );
 
         let _ = self.execute_from_string("let std = import(\"std\");");
@@ -93,7 +145,7 @@ impl Interpreter {
                     Err(e) => e.dump_error(&self.env),
                     Ok(_) => {
                         let v = self.env.reg(0);
-                        println!("{}", v.repr(&self.env, &mut HashSet::new()))
+                        println!("{}", v.repr(&self.env))
                     }
                 },
                 e => {
