@@ -1,25 +1,7 @@
+
+
+let x = 3;
+
 let std = import("std");
 
-let data = [1, 2, 3, 4, 5];
-let data1 = { "a": 10, "b": 3 };
-
-std.println(std.remove(data, 3));
-std.println(std.remove(data1, "b"));
-std.insert(data, 2, 100);
-std.insert(data1, "d", 101);
-
-std.println(data);
-std.println(data1);
-std.remove(data1, "c");
-std.println(data1);
-
-
-fun rec(n) {
-  return if n == 0 {
-    1 / 0
-  } else {
-    rec(n - 1)
-  };
-}
-
-rec(10);
+std.println(x);

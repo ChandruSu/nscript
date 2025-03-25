@@ -3,7 +3,6 @@ use core::fmt;
 use colored::Colorize;
 
 use crate::{
-    backend::opcodes,
     error,
     frontend::{
         lexer::{self, Tk},
@@ -290,6 +289,7 @@ impl<'a> Parser<'a> {
             Tk::Return => self.parse_return(),
             Tk::Fun => self.parse_function(false),
             Tk::Id(_) => self.parse_assign_or_call(),
+            Tk::Import => self.parse_assign_or_call(),
             Tk::Break => {
                 let pos = self.consume()?.pos;
                 self.expect(Tk::Semi)?;
@@ -397,7 +397,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Result<AstNode, error::Error> {
-        self.parse_binary(operator::MAX_OP_PRECEDENCE)
+        self.parse_ternary()
     }
 
     fn parse_ternary(&mut self) -> Result<AstNode, error::Error> {

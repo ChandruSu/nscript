@@ -105,7 +105,7 @@ impl<'a> Compiler<'a> {
         body: &AstNode,
         pos: io::Pos,
     ) -> Result<&mut Self, error::Error> {
-        let fid = self.env.new_seg(
+        let fid = self.env.new_seg(Segment::new(
             name.clone().unwrap_or("<lambda>".to_string()),
             false,
             Reg::try_from(args.len()).unwrap() + 1,
@@ -116,9 +116,9 @@ impl<'a> Compiler<'a> {
                 .map(|(i, v)| (v.to_string(), Reg::try_from(i).unwrap()))
                 .collect(),
             HashMap::new(),
-            BTreeMap::new(),
             Some(self.curr_seg),
-        );
+            BTreeMap::new(),
+        ));
 
         let fr = match name {
             None => Ok(r.unwrap()),

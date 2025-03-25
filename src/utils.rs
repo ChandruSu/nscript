@@ -70,6 +70,16 @@ pub mod io {
             }
         }
 
+        pub fn load_source_string(&mut self, source_string: &str) -> Result<&Source, error::Error> {
+            self.sources.push(Source {
+                id: self.sources.len() as u32,
+                src_content: source_string.replace("\t", "    "),
+                src_origin: "<input>".to_string(),
+            });
+
+            Ok(self.sources.last().unwrap())
+        }
+
         pub fn get_line(&self, pos: &Pos) -> Option<String> {
             match self.get_source(pos.src_id) {
                 Some(src) => {

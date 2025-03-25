@@ -37,7 +37,6 @@ impl Segment {
         upvals: HashMap<String, Reg>,
         parent: Option<usize>,
         positions: BTreeMap<usize, io::Pos>,
-        native: Option<NativeFnPtr>,
     ) -> Self {
         Self {
             name,
@@ -49,7 +48,7 @@ impl Segment {
             symbols,
             positions,
             parent,
-            native,
+            native: None,
         }
     }
 
@@ -81,6 +80,11 @@ impl Segment {
             parent: None,
             native: Some(native),
         }
+    }
+
+    pub fn clear_definition(&mut self) {
+        self.bytecode.clear();
+        self.positions.clear();
     }
 
     pub fn name(&self) -> &String {
@@ -172,6 +176,14 @@ impl Segment {
 
     pub fn get_symbol(&self, id: &String) -> Option<Reg> {
         self.symbols.get(id).map(|r| *r)
+    }
+
+    pub fn symbol_table(&self) -> &HashMap<std::string::String, Reg> {
+        &self.symbols
+    }
+
+    pub fn symbol_table_mut(&mut self) -> &mut HashMap<std::string::String, Reg> {
+        &mut self.symbols
     }
 
     pub fn new_upval(&mut self, id: String) -> Option<Reg> {

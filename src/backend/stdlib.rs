@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use crate::{
-    backend::opcodes::Reg,
     error,
     vm::{
         heap::{Alloc, GCObject},
-        Env, NativeFnPtr, Segment, Value,
+        Env, ModuleFnRecord, Value,
     },
 };
 
@@ -151,35 +148,65 @@ fn std_object_keys(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
     }
 }
 
-fn form_module(env: &mut Env, exports: Vec<(String, Reg, NativeFnPtr)>) -> usize {
-    let mut module = HashMap::new();
-
-    for (fname, fargs, fptr) in exports {
-        module.insert(
-            Value::from_string(&fname),
-            Value::Func(env.segments().len() as u32, 0),
-        );
-        env.segments_mut().push(Segment::native(fname, fargs, fptr));
-    }
-
-    env.heap.alloc(GCObject::object(module))
-}
-
-pub fn load_std_into_env(env: &mut Env) -> usize {
-    form_module(
-        env,
+pub fn register_standard_library(env: &mut Env) {
+    env.register_module(
+        "std".to_string(),
         vec![
-            ("println".to_string(), 1, std_println),
-            ("print".to_string(), 1, std_print),
-            ("typeof".to_string(), 1, std_typeof),
-            ("len".to_string(), 1, std_len),
-            ("str".to_string(), 1, std_str),
-            ("append".to_string(), 2, std_array_append),
-            ("insert".to_string(), 3, std_insert),
-            ("remove".to_string(), 2, std_remove),
-            ("pop".to_string(), 1, std_array_pop),
-            ("keys".to_string(), 1, std_object_keys),
-            ("gc".to_string(), 0, Env::gc),
+            ModuleFnRecord {
+                name: "println".to_string(),
+                arg_count: 1,
+                function: std_println,
+            },
+            ModuleFnRecord {
+                name: "print".to_string(),
+                arg_count: 1,
+                function: std_print,
+            },
+            ModuleFnRecord {
+                name: "typeof".to_string(),
+                arg_count: 1,
+                function: std_typeof,
+            },
+            ModuleFnRecord {
+                name: "len".to_string(),
+                arg_count: 1,
+                function: std_len,
+            },
+            ModuleFnRecord {
+                name: "str".to_string(),
+                arg_count: 1,
+                function: std_str,
+            },
+            ModuleFnRecord {
+                name: "append".to_string(),
+                arg_count: 2,
+                function: std_array_append,
+            },
+            ModuleFnRecord {
+                name: "insert".to_string(),
+                arg_count: 3,
+                function: std_insert,
+            },
+            ModuleFnRecord {
+                name: "remove".to_string(),
+                arg_count: 2,
+                function: std_remove,
+            },
+            ModuleFnRecord {
+                name: "pop".to_string(),
+                arg_count: 1,
+                function: std_array_pop,
+            },
+            ModuleFnRecord {
+                name: "keys".to_string(),
+                arg_count: 1,
+                function: std_object_keys,
+            },
+            ModuleFnRecord {
+                name: "gc".to_string(),
+                arg_count: 0,
+                function: Env::gc,
+            },
         ],
     )
 }

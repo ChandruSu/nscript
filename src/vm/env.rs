@@ -1,13 +1,11 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use crate::{
     backend::{
-        compiler,
         opcodes::{Ins, Reg},
         stdlib,
     },
     error,
-    frontend::{lexer, parser},
     utils::io,
 };
 
@@ -15,6 +13,7 @@ use super::{
     heap::{Alloc, GCObject, Heap},
     segment::Segment,
     value::Value,
+    NativeFnPtr,
 };
 
 struct CallInfo {
@@ -25,6 +24,12 @@ struct CallInfo {
     retloc: usize,
 }
 
+pub struct ModuleFnRecord {
+    pub name: String,
+    pub function: NativeFnPtr,
+    pub arg_count: Reg,
+}
+
 pub struct Env {
     segments: Vec<Segment>,
     calls: Vec<CallInfo>,
@@ -32,23 +37,25 @@ pub struct Env {
     globals: Vec<Value>,
     pub heap: Heap,
     pub sources: io::SourceManager,
-    import_cache: HashMap<String, usize>,
+    modules: HashMap<String, usize>,
 }
 
 impl Env {
     pub fn new() -> Self {
-        Self {
+        let mut env = Self {
             calls: vec![],
             registers: vec![Value::Null; 1024], // TODO: make these dynamic Stack allocators
             globals: vec![Value::Null; 128],
             heap: Heap::new(8),
             sources: io::SourceManager::new(),
-            import_cache: HashMap::new(),
+            modules: HashMap::new(),
             segments: vec![
                 Segment::empty("__start".to_string(), true),
                 Segment::native("__import".to_string(), 1, Self::import),
             ],
-        }
+        };
+        stdlib::register_standard_library(&mut env);
+        env
     }
 
     pub fn trace_pos(&self) -> Vec<io::Pos> {
@@ -63,50 +70,40 @@ impl Env {
     fn import(&mut self, arg0: usize, argc: usize) -> Result<Value, error::Error> {
         let args = &self.registers[arg0..arg0 + argc];
 
-        let path = match args.first() {
-            Some(Value::String(path)) => path.to_string(),
-            _ => return error::Error::argument_error(0, 1).err(),
-        };
+        match args.first() {
+            Some(Value::String(name)) => {
+                let module = name.to_string();
+                match self.modules.get(&module) {
+                    Some(v) => Ok(Value::Object(*v)),
+                    None => error::Error::module_not_found(module)
+                        .with_pos(self.last_call_pos())
+                        .err(),
+                }
+            }
+            _ => error::Error::argument_error(0, 1)
+                .with_pos(self.last_call_pos())
+                .err(),
+        }
+    }
 
-        if let Some(v) = self.import_cache.get(&path) {
-            Ok(Value::Object(*v))
-        } else if path == "std" {
-            // TODO: make this extendible
-            let i = stdlib::load_std_into_env(self);
-            self.import_cache.insert(path, i);
-            Ok(Value::Object(i))
-        } else {
-            // TODO: Maybe spawn new env and for each global, pull env value and realloc on current env's heap
-            let old_calls = std::mem::take(&mut self.calls);
-            let old_globals = std::mem::replace(&mut self.globals, vec![Value::Null; 128]);
-            let old_registers = std::mem::replace(&mut self.registers, vec![Value::Null; 1024]);
-            let old_main = std::mem::replace(
-                &mut self.segments[0],
-                Segment::empty("__start".to_string(), true),
+    pub fn register_module(&mut self, name: String, exports: Vec<ModuleFnRecord>) {
+        let mut module = HashMap::new();
+
+        for method in exports {
+            module.insert(
+                Value::from_string(&method.name),
+                Value::Func(self.segments().len() as u32, 0),
             );
 
-            let src = self.sources.load_source_file(&path)?;
-            let ast = &parser::Parser::new(&mut lexer::Lexer::new(src)).parse()?;
-
-            compiler::Compiler::new(self).compile(ast)?;
-            self.execute(0)?;
-
-            let exports = self.segments[0]
-                .symbols()
-                .iter()
-                .map(|(k, v)| (Value::from_string(k), self.globals[*v as usize].clone()))
-                .collect();
-
-            let i = self.heap.alloc(GCObject::object(exports));
-            self.import_cache.insert(path, i);
-
-            self.calls = old_calls;
-            self.globals = old_globals;
-            self.registers = old_registers;
-            self.segments[0] = old_main;
-
-            Ok(Value::Object(i))
+            self.segments_mut().push(Segment::native(
+                method.name,
+                method.arg_count,
+                method.function,
+            ));
         }
+
+        let ptr = self.heap.alloc(GCObject::object(module));
+        self.modules.insert(name, ptr);
     }
 
     pub fn gc(&mut self, _arg0: usize, _argc: usize) -> Result<Value, error::Error> {
@@ -130,21 +127,8 @@ impl Env {
         Ok(Value::Null)
     }
 
-    pub fn new_seg(
-        &mut self,
-        name: String,
-        global: bool,
-        slots: Reg,
-        bytecode: Vec<Ins>,
-        constants: Vec<Value>,
-        symbols: HashMap<String, Reg>,
-        upvals: HashMap<String, Reg>,
-        positions: BTreeMap<usize, io::Pos>,
-        parent: Option<usize>,
-    ) -> usize {
-        self.segments.push(Segment::new(
-            name, global, slots, bytecode, constants, symbols, upvals, parent, positions, None,
-        ));
+    pub fn new_seg(&mut self, segment: Segment) -> usize {
+        self.segments.push(segment);
         self.segments.len() - 1
     }
 

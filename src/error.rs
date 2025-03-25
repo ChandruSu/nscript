@@ -159,6 +159,14 @@ impl Error {
         }
     }
 
+    pub fn module_not_found(name: String) -> Self {
+        Self {
+            msg: format!("Module not found: '{}'", name),
+            err_type: ErrorType::NameError(name),
+            pos: None,
+        }
+    }
+
     pub fn unexpected_null() -> Self {
         Self {
             msg: format!("Recieved unexpected 'null' value"),

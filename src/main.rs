@@ -1,70 +1,79 @@
-use std::time::Instant;
-
-use clap::Parser;
-use ns::backend::compiler;
-use ns::frontend::lexer::{self};
-use ns::frontend::parser::{self};
-use ns::vm;
-
-use ns::cli::Cli;
+use ns::cli::execute;
 
 fn main() {
-    let args = Cli::parse();
+    execute();
+    // if let Err(e) = interpreter.execute_from_file(&args.file_name) {
+    //     e.dump_error(interpreter.environment());
+    //     return;
+    // }
 
-    let mut env = vm::Env::new();
-    let source = match env.sources.load_source_file(&args.file_name) {
-        Ok(s) => s,
-        Err(e) => {
-            e.dump_error(&env);
-            return;
-        }
-    };
+    // if let Err(e) = interpreter.execute_from_string("x += 1; std.println(x);") {
+    //     e.dump_error(interpreter.environment());
+    //     return;
+    // }
 
-    let start = Instant::now();
-    let mut lexer = lexer::Lexer::new(source);
-    let mut parser = parser::Parser::new(&mut lexer);
+    // match interpreter.evaluate_from_string("std.println(\"A\")") {
+    //     Err(e) => {
+    //         e.dump_error(interpreter.environment());
+    //         return;
+    //     }
+    //     Ok(v) => {
+    //         println!("{}", v.repr(interpreter.environment(), &mut HashSet::new()));
+    //     }
+    // }
 
-    let ast = match parser.parse() {
-        Ok(ast) => ast,
-        Err(e) => {
-            e.dump_error(&env);
-            return;
-        }
-    };
+    // let mut env = vm::Env::new();
+    // let source = match env.sources.load_source_file(&args.file_name) {
+    //     Ok(s) => s,
+    //     Err(e) => {
+    //         e.dump_error(&env);
+    //         return;
+    //     }
+    // };
 
-    if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {
-        e.dump_error(&env);
-        return;
-    }
+    // let start = Instant::now();
+    // let mut lexer = lexer::Lexer::new(source);
+    // let mut parser = parser::Parser::new(&mut lexer);
 
-    println!("{}", ast);
+    // let ast = match parser.parse() {
+    //     Ok(ast) => ast,
+    //     Err(e) => {
+    //         e.dump_error(&env);
+    //         return;
+    //     }
+    // };
 
-    for (idx, program) in env.segments().iter().enumerate() {
-        println!("[idx = {}]\n{:?}", idx, program);
-    }
+    // if let Err(e) = compiler::Compiler::new(&mut env).compile(&ast) {
+    //     e.dump_error(&env);
+    //     return;
+    // }
 
-    println!("<=== STD OUT ===>");
+    // println!("{}", ast);
 
-    if let Err(e) = env.execute(0) {
-        e.dump_error(&env);
-        return;
-    }
+    // for (idx, program) in env.segments().iter().enumerate() {
+    //     println!("[idx = {}]\n{:?}", idx, program);
+    // }
 
-    println!("<===============>");
+    // println!("<=== STD OUT ===>");
 
-    println!("Execution took: {}ms", start.elapsed().as_millis());
+    // if let Err(e) = env.execute(0) {
+    //     e.dump_error(&env);
+    //     return;
+    // }
 
-    for i in 0..10 {
-        println!("G({}) = {:?}", i, env.reg_global(i));
-    }
+    // println!("<===============>");
 
-    println!();
-    for i in 0..16 {
-        println!("R({}) = {:?}", i, env.reg(i));
-    }
+    // println!("Execution took: {}ms", start.elapsed().as_millis());
 
-    println!();
+    // for i in 0..10 {
+    //     println!("G({}) = {:?}", i, env.reg_global(i));
+    // }
+
+    // println!();
+    // for i in 0..16 {
+    //     println!("R({}) = {:?}", i, env.reg(i));
+    // }
+
+    // println!();
     // env.heap.dump();
-
-    println!("Done");
 }

@@ -61,7 +61,7 @@ impl Value {
         Value::String(Box::new(s.to_string()))
     }
 
-    pub fn to_repr(&self, env: &Env, visited: &mut HashSet<usize>) -> String {
+    pub fn repr(&self, env: &Env, visited: &mut HashSet<usize>) -> String {
         match self {
             Value::String(v) => format!("'{}'", v),
             _ => self.to_string_safe(env, visited),
@@ -91,7 +91,7 @@ impl Value {
                     GCObject::Array { mark: _, vec } => format!(
                         "[{}]",
                         vec.iter()
-                            .map(|v| v.to_repr(env, visited))
+                            .map(|v| v.repr(env, visited))
                             .collect::<Vec<String>>()
                             .join(", ")
                     ),
@@ -106,8 +106,8 @@ impl Value {
                         map.iter()
                             .map(|(k, v)| format!(
                                 "{}: {}",
-                                k.to_repr(env, visited),
-                                v.to_repr(env, visited)
+                                k.repr(env, visited),
+                                v.repr(env, visited)
                             ))
                             .collect::<Vec<String>>()
                             .join(", ")
