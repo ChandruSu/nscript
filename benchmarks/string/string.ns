@@ -1,0 +1,19 @@
+
+let std = import("std");
+let t0 = std.time();
+let N = std.parseInt(args[0]);
+
+let a = "a";
+let b = "b";
+
+while N > 0 {
+  a = a + b;
+  b = b + a;
+  N -= 1;
+}
+
+
+let t1 = std.time();
+
+std.println("Length of a: " + std.str(std.len(a)));
+std.println("Execution took (ms) " + std.str(t1 - t0));

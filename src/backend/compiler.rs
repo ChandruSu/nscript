@@ -524,7 +524,7 @@ impl<'a> Compiler<'a> {
         self.with(Ins::ArrNew(r, vs.len() as u16));
 
         for (i, v) in vs.iter().enumerate() {
-            self.compile_literal(r + 1, &AstNode::new(Ast::Int(i as i32), pos))?
+            self.compile_literal(r + 1, &AstNode::new(Ast::Int(i as i64), pos))?
                 .compile_expr(r + 2, v)?
                 .with(Ins::ObjIns(r, r + 1, r + 2));
         }

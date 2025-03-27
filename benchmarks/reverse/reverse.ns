@@ -1,0 +1,23 @@
+
+let std = import("std");
+let t0 = std.time();
+let N = std.parseInt(args[0]);
+
+let arr = [];
+
+let i = 0;
+while i < N {
+  std.append(arr, i);
+  i += 1;
+}
+
+i = 0;
+while i < (N / 2) {
+  let temp = arr[i];
+  arr[i] = arr[N - i - 1];
+  arr[N - i - 1] = temp;
+  i += 1;
+}
+
+let t1 = std.time();
+std.println("Execution took (ms) " + std.str(t1 - t0));

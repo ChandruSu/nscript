@@ -14,8 +14,8 @@ use super::{
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value {
     Null,
-    Int(i32),
-    Float(f32),
+    Int(i64),
+    Float(f64),
     Bool(bool),
     String(Box<String>),
     Func(u32, usize),
@@ -142,8 +142,8 @@ impl ops::Add<&Value> for &Value {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_add(*v1))),
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.add(*v0))),
-            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).add(*v1))),
-            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.add((*v1) as f32))),
+            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).add(*v1))),
+            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.add((*v1) as f64))),
             (Value::String(v0), Value::String(v1)) => {
                 Ok(Value::String(Box::new(v0.to_string() + v1)))
             }
@@ -158,8 +158,8 @@ impl ops::Sub<&Value> for &Value {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_sub(*v1))),
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.sub(*v0))),
-            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).sub(*v1))),
-            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.sub((*v1) as f32))),
+            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).sub(*v1))),
+            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.sub((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Sub, t0, t1).err(),
         }
     }
@@ -171,8 +171,8 @@ impl ops::Mul<&Value> for &Value {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_mul(*v1))),
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.mul(*v0))),
-            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).mul(*v1))),
-            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.mul((*v1) as f32))),
+            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).mul(*v1))),
+            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.mul((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mul, t0, t1).err(),
         }
     }
@@ -184,8 +184,8 @@ impl ops::Rem<&Value> for &Value {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_rem(*v1))),
             (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.rem(*v0))),
-            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).rem(*v1))),
-            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f32))),
+            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).rem(*v1))),
+            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mod, t0, t1).err(),
         }
     }
@@ -199,8 +199,8 @@ impl ops::Div<&Value> for &Value {
             _ => match (self, rhs) {
                 (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_div(*v1))),
                 (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
-                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f32).div(*v1))),
-                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f32))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).div(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f64))),
                 (t0, t1) => error::Error::op_type_mismatch(operator::Op::Div, t0, t1).err(),
             },
         }
@@ -289,7 +289,7 @@ impl Hash for Value {
             }
             Value::Float(f) => {
                 state.write_u8(2);
-                state.write_u32(f.to_bits());
+                state.write_u64(f.to_bits());
             }
             Value::Bool(b) => {
                 state.write_u8(3);

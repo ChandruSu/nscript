@@ -8,9 +8,9 @@ use super::operator::Op;
 #[derive(Debug, PartialEq)]
 pub enum Tk {
     Null,
-    Int(i32),
+    Int(i64),
     Bool(bool),
-    Float(f32),
+    Float(f64),
     String(String),
     Id(String),
     Operator(Op),
@@ -104,9 +104,9 @@ impl<'a> Lexer<'a> {
         &self.tks[(self.tki) % 3]
     }
 
-    pub fn loohahead_token(&self) -> &Token {
-        &self.tks[(self.tki + 2) % 3]
-    }
+    // pub fn loohahead_token(&self) -> &Token {
+    //     &self.tks[(self.tki + 2) % 3]
+    // }
 
     fn advance(&mut self) -> char {
         if self.current_char == '\n' {
@@ -257,9 +257,9 @@ impl<'a> Lexer<'a> {
         }
 
         if is_float {
-            Tk::Float(buf.parse::<f32>().unwrap_or(0.0))
+            Tk::Float(buf.parse::<f64>().unwrap_or(0.0))
         } else {
-            Tk::Int(buf.parse::<i32>().unwrap_or(0))
+            Tk::Int(buf.parse::<i64>().unwrap_or(0))
         }
     }
 

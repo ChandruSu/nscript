@@ -1,0 +1,23 @@
+
+let std = import("std");
+let t0 = std.time();
+let N = std.parseInt(args[0]);
+
+fun adder(n) {
+  fun add(x) {
+    return n + x;
+  }
+  return add;
+}
+
+let sum = 0;
+
+while N > 0 {
+  sum = adder(N)(sum);
+  N -= 1;
+}
+
+std.println("Sum: " + std.str(sum));
+
+let t1 = std.time();
+std.println("Execution took (ms) " + std.str(t1 - t0));

@@ -1,0 +1,42 @@
+
+let std = import("std");
+
+let t0 = std.time();
+
+let N = std.parseInt(args[0]);
+let x = [];
+
+let i = 0;
+while i < N {
+  std.append(x, true);
+  i += 1;
+}
+
+i = 2;
+while i * i < N {
+  if !x[i] {
+    i += 1;
+    continue;
+  }
+  let j = 2 * i;
+  
+  while j < N {
+    x[j] = false;
+    j += i;
+  }
+
+  i += 1;
+}
+
+std.println("Primes until: " + std.str(N));
+i = 0;
+while i < N {
+  if x[i] {
+    std.println(i);
+  }
+  i += 1;
+}
+
+let t1 = std.time();
+
+std.println("Execution took (ms) " + std.str(t1 - t0));

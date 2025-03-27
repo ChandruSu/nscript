@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::{
     error,
     vm::{
@@ -35,7 +37,7 @@ fn std_typeof(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
 
 fn std_len(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
     assert_arg_count(env, argc, 1)?;
-    env.reg(arg0).length(env).map(|len| Value::Int(len as i32))
+    env.reg(arg0).length(env).map(|len| Value::Int(len as i64))
 }
 
 fn std_str(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
@@ -148,6 +150,27 @@ fn std_object_keys(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
     }
 }
 
+fn std_time(_env: &mut Env, _arg0: usize, _argc: usize) -> Result<Value, error::Error> {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    Ok(Value::Int(millis as i64))
+}
+
+fn std_parse_int(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
+    assert_arg_count(env, argc, 1)?;
+    match env.reg(arg0) {
+        Value::String(s) => match s.parse().into() {
+            Ok(i) => Ok(Value::Int(i)),
+            Err(_) => error::Error::invalid_string_parse_input(s)
+                .with_pos(env.last_call_pos())
+                .err(),
+        },
+        v => error::Error::type_error(v, &Value::String(Box::default())).err(),
+    }
+}
+
 pub fn register_standard_library(env: &mut Env) {
     env.register_module(
         "std".to_string(),
@@ -206,6 +229,16 @@ pub fn register_standard_library(env: &mut Env) {
                 name: "gc".to_string(),
                 arg_count: 0,
                 function: Env::gc,
+            },
+            ModuleFnRecord {
+                name: "time".to_string(),
+                arg_count: 0,
+                function: std_time,
+            },
+            ModuleFnRecord {
+                name: "parseInt".to_string(),
+                arg_count: 1,
+                function: std_parse_int,
             },
         ],
     )

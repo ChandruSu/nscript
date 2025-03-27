@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     io::{self, Write},
     time::Instant,
 };
@@ -17,18 +16,24 @@ pub struct Interpreter {
     env: Env,
     verbose: bool,
     debug: bool,
+    debug_segment_count: usize,
 }
 
 impl Interpreter {
-    pub fn new(verbose: bool, debug: bool) -> Self {
-        let mut env = Env::new();
+    pub fn new(verbose: bool, debug: bool, args: Vec<String>) -> Self {
+        let mut env = Env::new(args);
+
         env.get_segment_mut(0)
             .symbol_table_mut()
             .insert("_".to_string(), 0);
+
+        let debug_segment_count = env.segments().len();
+
         Self {
             env,
             verbose,
             debug,
+            debug_segment_count,
         }
     }
 
@@ -72,6 +77,16 @@ impl Interpreter {
                     "verbose".purple(),
                     start.elapsed().as_micros()
                 );
+            }
+
+            if self.debug {
+                println!("{:?}", self.env.get_segment(0));
+
+                for i in self.debug_segment_count..self.env.segments().len() {
+                    println!("{:?}", self.env.get_segment(i));
+                }
+
+                self.debug_segment_count = self.env.segments().len();
             }
 
             start = Instant::now();
@@ -131,6 +146,7 @@ impl Interpreter {
             io::stdout().flush().unwrap();
 
             input.clear();
+
             if let Err(e) = io::stdin().read_line(&mut input) {
                 eprintln!("Failed to read from standard input: {}", e);
                 break;

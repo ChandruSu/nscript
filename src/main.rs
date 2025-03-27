@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use clap::Parser;
 use clap::Subcommand;
 
@@ -18,6 +16,10 @@ struct Cli {
     /// Enable verbose output
     #[arg(short = 'v', long = "verbose", global = true)]
     verbose: bool,
+
+    // Command line arguments available in script
+    #[arg(short = 'a', long = "args", global = true, value_delimiter = ' ', num_args = 1..)]
+    arguments: Option<Vec<String>>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -41,7 +43,8 @@ enum Command {
 fn main() {
     let args = Cli::parse();
 
-    let mut interpreter = Interpreter::new(args.verbose, args.debug);
+    let mut interpreter =
+        Interpreter::new(args.verbose, args.debug, args.arguments.unwrap_or(vec![]));
 
     match args.command {
         Command::Run { file } => {

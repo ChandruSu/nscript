@@ -14,6 +14,7 @@ pub enum ErrorType {
     ArithmeticError(Value),
     ArgumentError(u32, u32),
     IndexError(u32),
+    ValueError,
 }
 
 pub struct Error {
@@ -82,6 +83,14 @@ impl Error {
         Self {
             msg: format!("Cannot read file: '{}'", file_path),
             err_type: ErrorType::IOError,
+            pos: None,
+        }
+    }
+
+    pub fn invalid_string_parse_input(s: &str) -> Self {
+        Self {
+            msg: format!("Cannot parse string: '{}'", s),
+            err_type: ErrorType::ValueError,
             pos: None,
         }
     }
@@ -227,7 +236,7 @@ impl Error {
         }
     }
 
-    pub fn negative_shift(v: i32) -> Self {
+    pub fn negative_shift(v: i64) -> Self {
         Self {
             msg: format!("Cannot apply bitwise shift operation using a signed integer",),
             err_type: ErrorType::ArithmeticError(Value::Int(v)),
@@ -333,6 +342,17 @@ impl Error {
                 if let Some(pos) = self.pos {
                     eprintln!(
                         "NAME ERROR: {} at {}:{}:{}",
+                        self.msg,
+                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
+                        pos.line + 1,
+                        pos.column + 1
+                    )
+                }
+            }
+            ErrorType::ValueError => {
+                if let Some(pos) = self.pos {
+                    eprintln!(
+                        "VALUE ERROR: {} at {}:{}:{}",
                         self.msg,
                         env.sources.get_source(pos.src_id).unwrap().get_origin(),
                         pos.line + 1,

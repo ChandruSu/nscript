@@ -13,8 +13,8 @@ use crate::{
 
 pub enum Ast {
     Null,
-    Int(i32),
-    Float(f32),
+    Int(i64),
+    Float(f64),
     Bool(bool),
     String(String),
     Object(Vec<(AstNode, AstNode)>),

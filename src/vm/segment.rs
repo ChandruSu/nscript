@@ -85,6 +85,8 @@ impl Segment {
     pub fn clear_definition(&mut self) {
         self.bytecode.clear();
         self.positions.clear();
+        self.constants.clear();
+        self.upvals.clear();
     }
 
     pub fn name(&self) -> &String {
@@ -171,6 +173,18 @@ impl Segment {
             self.symbols.insert(id, location);
             self.slots += 1;
             Some(location)
+        }
+    }
+
+    pub fn get_or_create_symbol(&mut self, id: String) -> Reg {
+        match self.symbols.get(&id) {
+            Some(r) => *r,
+            None => {
+                let location = Reg::try_from(self.symbols.len()).unwrap();
+                self.symbols.insert(id, location);
+                self.slots += 1;
+                location
+            }
         }
     }
 

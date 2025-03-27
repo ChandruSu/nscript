@@ -41,11 +41,11 @@ pub struct Env {
 }
 
 impl Env {
-    pub fn new() -> Self {
+    pub fn new(args: Vec<String>) -> Self {
         let mut env = Self {
             calls: vec![],
             registers: vec![Value::Null; 1024], // TODO: make these dynamic Stack allocators
-            globals: vec![Value::Null; 128],
+            globals: vec![Value::Null; 1024],
             heap: Heap::new(8),
             sources: io::SourceManager::new(),
             modules: HashMap::new(),
@@ -54,7 +54,16 @@ impl Env {
                 Segment::native("__import".to_string(), 1, Self::import),
             ],
         };
+
         stdlib::register_standard_library(&mut env);
+
+        let args_array = env.heap.alloc(GCObject::array(
+            args.into_iter()
+                .map(|a| Value::String(Box::new(a)))
+                .collect(),
+        ));
+
+        env.set_global("args".to_string(), Value::Array(args_array));
         env
     }
 
@@ -156,6 +165,17 @@ impl Env {
         &self.globals[i]
     }
 
+    pub fn get_global(&self, symbol: &String) -> Option<&Value> {
+        self.get_segment(0)
+            .get_symbol(symbol)
+            .map(|id| self.reg_global(id as usize))
+    }
+
+    pub fn set_global(&mut self, symbol: String, value: Value) {
+        let register = self.get_segment_mut(0).get_or_create_symbol(symbol);
+        self.globals[register as usize] = value;
+    }
+
     pub fn last_call_pos(&self) -> Option<&io::Pos> {
         self.calls
             .last()
@@ -175,8 +195,9 @@ impl Env {
             let pg = &self.segments[ci.program];
 
             if let Some(native_fptr) = pg.native_function_pointer() {
-                self.registers[ci.retloc] = native_fptr(self, ci.sp, pg.slots() as usize)?;
-                // TODO: self.registers[ci.sp..ci.sp + pg.slots as usize + 1].fill(Value::Null);
+                let slots = pg.slots();
+                self.registers[ci.retloc] = native_fptr(self, ci.sp, slots as usize)?;
+                // FIX: self.registers[ci.sp..ci.sp + slots as usize + 1].fill(Value::Null);
                 continue 'next_call;
             }
 
@@ -345,7 +366,7 @@ impl Env {
                             Value::Object(ptr) => {
                                 reg[a as usize] = match self.heap.access(*ptr) {
                                     GCObject::Object { mark: _, map } => {
-                                        map[&reg[c as usize]].clone()
+                                        map.get(&reg[c as usize]).cloned().unwrap_or(Value::Null)
                                     }
                                     _ => unreachable!("value-pointer heap-object type mismatch"),
                                 }
@@ -356,15 +377,31 @@ impl Env {
                                         Value::Int(i) if 0 <= *i && (*i as usize) < vec.len() => {
                                             vec[*i as usize].clone()
                                         }
-                                        Value::Int(i) => {
-                                            error::Error::array_index_error(*i as u32).err()?
-                                        }
-                                        v => error::Error::type_error(&v, &Value::Int(0)).err()?,
+                                        Value::Int(i) => error::Error::array_index_error(*i as u32)
+                                            .with_pos(pg.get_pos(ci.pc))
+                                            .err()?,
+                                        v => error::Error::type_error(&v, &Value::Int(0))
+                                            .with_pos(pg.get_pos(ci.pc))
+                                            .err()?,
                                     },
                                     _ => unreachable!("value-pointer heap-object type mismatch"),
                                 }
                             }
-                            v => error::Error::type_error_any(&v).err()?,
+                            Value::String(s) => {
+                                reg[a as usize] = match &reg[c as usize] {
+                                    Value::Int(i) if 0 <= *i && (*i as usize) < s.len() => s
+                                        .chars()
+                                        .nth(*i as usize)
+                                        .map(|c| Value::String(Box::new(c.to_string())))
+                                        .unwrap_or(Value::Null),
+                                    v => error::Error::type_error(&v, &Value::Int(0))
+                                        .with_pos(pg.get_pos(ci.pc))
+                                        .err()?,
+                                }
+                            }
+                            v => error::Error::type_error_any(&v)
+                                .with_pos(pg.get_pos(ci.pc))
+                                .err()?,
                         };
                     }
                     Ins::ObjIns(a, b, c) => {
@@ -382,14 +419,18 @@ impl Env {
                                     Value::Int(i) if 0 <= i && (i as usize) < vec.len() => {
                                         vec[i as usize] = v
                                     }
-                                    Value::Int(i) => {
-                                        error::Error::array_index_error(i as u32).err()?
-                                    }
-                                    v => error::Error::type_error(&v, &Value::Int(0)).err()?,
+                                    Value::Int(i) => error::Error::array_index_error(i as u32)
+                                        .with_pos(pg.get_pos(ci.pc))
+                                        .err()?,
+                                    v => error::Error::type_error(&v, &Value::Int(0))
+                                        .with_pos(pg.get_pos(ci.pc))
+                                        .err()?,
                                 },
                                 _ => unreachable!("value-pointer heap-object type mismatch"),
                             },
-                            v => error::Error::type_error_any(&v).err()?,
+                            v => error::Error::type_error_any(&v)
+                                .with_pos(pg.get_pos(ci.pc))
+                                .err()?,
                         }
                     }
                     Ins::Import(a) => {
@@ -402,7 +443,7 @@ impl Env {
                             pc: 0,
                             sp,
                             retloc,
-                            program: 1, // TODO
+                            program: 1,
                             closure: 0,
                         });
                         continue 'next_call;
