@@ -1,0 +1,43 @@
+let std = import("std");
+
+fun mandelbrot(re, im) {
+  let max_iter = 100;
+  let zr = 0.0;
+  let zi = 0.0;
+  let n = 0;
+  
+  while (zr * zr + zi * zi <= 4.0) && (n < max_iter) {
+    let temp = zr * zr - zi * zi + re;
+    zi = 2.0 * zr * zi + im;
+    zr = temp;
+    n += 1;
+  }
+  
+  return n;
+}
+
+let width = 100.0;
+let height = 200.0;
+let xmin = -2.0;
+let xmax = 1.0;
+let ymin = -1.0;
+let ymax = 1.0;
+
+let y = ymin;
+while y <= ymax {
+  let x = xmin;
+  let row = "";
+  
+  while x <= xmax {
+    let iter = mandelbrot(x, y);
+    if iter == 100 {
+      row += "#";
+    } else {
+      row += " ";
+    }
+    x += (xmax - xmin) / width;
+  }
+  std.println(row);
+  y += (ymax - ymin) / height;
+}
+ 

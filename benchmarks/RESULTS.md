@@ -140,3 +140,23 @@ Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
  9|3174|2691|2412
 10|3308|2692|2361
 Average|3290.6(137%)|2726.3(113%)|2402.5
+
+## String
+
+Description: Repeatedly concatenates two strings a and b, N times until the length of the final string is `fib(2N + 2)`
+
+Tests: strings, concatenation
+
+Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
+:--:|---:|---:|---:
+ 1|164|171|213
+ 2|157|155|211
+ 3|145|167|201
+ 4|144|172|209
+ 5|145|148|215
+ 6|149|148|199
+ 7|160|164|196
+ 8|146|167|202
+ 9|153|172|205
+10|154|160|209
+Average|151.7(73.6%)|162.4(78.8%)|206.0

@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
     ops,
+    rc::Rc,
 };
 
 use crate::{error, frontend::operator};
@@ -17,7 +18,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Bool(bool),
-    String(Box<String>),
+    String(Rc<String>),
     Func(u32, usize),
     Object(usize),
     Array(usize),
@@ -58,7 +59,7 @@ impl Value {
     }
 
     pub fn from_string(s: &str) -> Value {
-        Value::String(Box::new(s.to_string()))
+        Value::String(Rc::new(s.to_string()))
     }
 
     pub fn repr(&self, env: &Env) -> String {
@@ -141,11 +142,11 @@ impl ops::Add<&Value> for &Value {
     fn add(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_add(*v1))),
-            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.add(*v0))),
+            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.add(*v1))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).add(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.add((*v1) as f64))),
             (Value::String(v0), Value::String(v1)) => {
-                Ok(Value::String(Box::new(v0.to_string() + v1)))
+                Ok(Value::String(Rc::new(v0.to_string() + v1)))
             }
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Add, t0, t1).err(),
         }
@@ -157,7 +158,7 @@ impl ops::Sub<&Value> for &Value {
     fn sub(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_sub(*v1))),
-            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.sub(*v0))),
+            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.sub(*v1))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).sub(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.sub((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Sub, t0, t1).err(),
@@ -170,7 +171,7 @@ impl ops::Mul<&Value> for &Value {
     fn mul(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_mul(*v1))),
-            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.mul(*v0))),
+            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.mul(*v1))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).mul(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.mul((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mul, t0, t1).err(),
@@ -183,7 +184,7 @@ impl ops::Rem<&Value> for &Value {
     fn rem(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
             (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_rem(*v1))),
-            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.rem(*v0))),
+            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.rem(*v1))),
             (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).rem(*v1))),
             (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f64))),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mod, t0, t1).err(),
@@ -198,7 +199,7 @@ impl ops::Div<&Value> for &Value {
             Value::Int(0) | Value::Float(0.0) => error::Error::zero_division().err(),
             _ => match (self, rhs) {
                 (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_div(*v1))),
-                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v1.div(*v0))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.div(*v1))),
                 (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).div(*v1))),
                 (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.div((*v1) as f64))),
                 (t0, t1) => error::Error::op_type_mismatch(operator::Op::Div, t0, t1).err(),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     backend::{
@@ -59,7 +59,7 @@ impl Env {
 
         let args_array = env.heap.alloc(GCObject::array(
             args.into_iter()
-                .map(|a| Value::String(Box::new(a)))
+                .map(|a| Value::String(Rc::new(a)))
                 .collect(),
         ));
 
@@ -392,7 +392,7 @@ impl Env {
                                     Value::Int(i) if 0 <= *i && (*i as usize) < s.len() => s
                                         .chars()
                                         .nth(*i as usize)
-                                        .map(|c| Value::String(Box::new(c.to_string())))
+                                        .map(|c| Value::String(Rc::new(c.to_string())))
                                         .unwrap_or(Value::Null),
                                     v => error::Error::type_error(&v, &Value::Int(0))
                                         .with_pos(pg.get_pos(ci.pc))

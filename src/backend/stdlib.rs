@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     error,
@@ -42,7 +45,7 @@ fn std_len(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Erro
 
 fn std_str(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
     assert_arg_count(env, argc, 1)?;
-    Ok(Value::String(Box::new(env.reg(arg0).to_string(env))))
+    Ok(Value::String(Rc::new(env.reg(arg0).to_string(env))))
 }
 
 fn std_array_append(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
@@ -167,7 +170,7 @@ fn std_parse_int(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
                 .with_pos(env.last_call_pos())
                 .err(),
         },
-        v => error::Error::type_error(v, &Value::String(Box::default())).err(),
+        v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
     }
 }
 

@@ -10,6 +10,7 @@ use crate::{
 
 use std::{
     collections::{BTreeMap, HashMap},
+    rc::Rc,
     vec,
 };
 
@@ -202,7 +203,7 @@ impl<'a> Compiler<'a> {
                 self.seg_mut().inc_slots(r + 2);
                 let k = self
                     .seg_mut()
-                    .storek(Value::String(Box::new(e2.to_string())));
+                    .storek(Value::String(Rc::new(e2.to_string())));
 
                 return Ok(self
                     .compile_expr(r, e1)?
@@ -441,9 +442,7 @@ impl<'a> Compiler<'a> {
                 self.with(Ins::LoadK(r, k))
             }
             Ast::String(s) => {
-                let k = self
-                    .seg_mut()
-                    .storek(Value::String(Box::new(s.to_string())));
+                let k = self.seg_mut().storek(Value::String(Rc::new(s.to_string())));
                 self.with(Ins::LoadK(r, k))
             }
             _ => unreachable!(),
@@ -493,7 +492,7 @@ impl<'a> Compiler<'a> {
     fn compile_import(&mut self, r: Reg, path: &String) -> Result<&mut Self, error::Error> {
         let k = self
             .seg_mut()
-            .storek(Value::String(Box::new(path.to_string())));
+            .storek(Value::String(Rc::new(path.to_string())));
         Ok(self.with(Ins::LoadK(r, k)).with(Ins::Import(r)))
     }
 
@@ -552,7 +551,7 @@ impl<'a> Compiler<'a> {
     ) -> Result<&mut Self, error::Error> {
         let k = self
             .seg_mut()
-            .storek(Value::String(Box::new(e1.to_string())));
+            .storek(Value::String(Rc::new(e1.to_string())));
 
         self.compile_expr(r, e0)?
             .with(Ins::LoadK(r + 1, k))
