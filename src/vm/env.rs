@@ -25,9 +25,9 @@ struct CallInfo {
 }
 
 pub struct ModuleFnRecord {
-    pub name: String,
-    pub function: NativeFnPtr,
-    pub arg_count: Reg,
+    name: String,
+    function_pointer: NativeFnPtr,
+    arg_count: Reg,
 }
 
 pub struct Env {
@@ -107,7 +107,7 @@ impl Env {
             self.segments_mut().push(Segment::native(
                 method.name,
                 method.arg_count,
-                method.function,
+                method.function_pointer,
             ));
         }
 
@@ -253,6 +253,10 @@ impl Env {
                         reg[a as usize] = (&reg[b as usize] << &reg[c as usize])
                             .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
                     }
+                    Ins::Shr(a, b, c) => {
+                        reg[a as usize] = (&reg[b as usize] >> &reg[c as usize])
+                            .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
+                    }
                     Ins::BitAnd(a, b, c) => {
                         reg[a as usize] = (&reg[b as usize] & &reg[c as usize])
                             .map_err(|e| e.with_pos(pg.get_pos(ci.pc)))?;
@@ -380,7 +384,7 @@ impl Env {
                                         Value::Int(i) => error::Error::array_index_error(*i as u32)
                                             .with_pos(pg.get_pos(ci.pc))
                                             .err()?,
-                                        v => error::Error::type_error(&v, &Value::Int(0))
+                                        v => error::Error::type_error(&Value::Int(0), &v)
                                             .with_pos(pg.get_pos(ci.pc))
                                             .err()?,
                                     },
@@ -394,7 +398,7 @@ impl Env {
                                         .nth(*i as usize)
                                         .map(|c| Value::String(Rc::new(c.to_string())))
                                         .unwrap_or(Value::Null),
-                                    v => error::Error::type_error(&v, &Value::Int(0))
+                                    v => error::Error::type_error(&Value::Int(0), &v)
                                         .with_pos(pg.get_pos(ci.pc))
                                         .err()?,
                                 }
@@ -453,5 +457,15 @@ impl Env {
             }
         }
         Ok(())
+    }
+}
+
+impl ModuleFnRecord {
+    pub fn new(name: String, arg_count: u16, function_pointer: NativeFnPtr) -> Self {
+        Self {
+            name,
+            arg_count,
+            function_pointer,
+        }
     }
 }

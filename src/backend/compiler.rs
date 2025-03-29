@@ -376,18 +376,21 @@ impl<'a> Compiler<'a> {
         self.set_ins(
             jmp,
             match op {
-                Op::Or => Ins::JumpFalse(r, self.seg().count()),
-                Op::And => Ins::JumpTrue(r, self.seg().count()),
+                Op::Or => Ins::JumpTrue(r, self.seg().count()),
+                Op::And => Ins::JumpFalse(r, self.seg().count()),
                 _ => unreachable!(),
             },
         );
 
+        // Short circuit evaluation of boolean expressions
         for idx in (start..self.seg().count()).rev() {
             let ins = match self.seg().ins().get(idx).unwrap() {
                 ins @ (Ins::JumpTrue(_, d) | Ins::JumpFalse(_, d)) => {
-                    match (ins, self.seg().ins().get(*d).unwrap()) {
-                        (Ins::JumpTrue(r, _), Ins::JumpTrue(_, d)) => Ins::JumpTrue(*r, *d),
-                        (Ins::JumpFalse(r, _), Ins::JumpFalse(_, d)) => Ins::JumpFalse(*r, *d),
+                    match (ins, self.seg().ins().get(*d)) {
+                        (Ins::JumpTrue(r, _), Some(Ins::JumpTrue(_, d))) => Ins::JumpTrue(*r, *d),
+                        (Ins::JumpFalse(r, _), Some(Ins::JumpFalse(_, d))) => {
+                            Ins::JumpFalse(*r, *d)
+                        }
                         _ => continue,
                     }
                 }

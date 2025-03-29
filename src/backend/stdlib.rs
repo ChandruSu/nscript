@@ -174,75 +174,37 @@ fn std_parse_int(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
     }
 }
 
+fn std_parse_float(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
+    assert_arg_count(env, argc, 1)?;
+    match env.reg(arg0) {
+        Value::String(s) => match s.parse().into() {
+            Ok(f) => Ok(Value::Float(f)),
+            Err(_) => error::Error::invalid_string_parse_input(s)
+                .with_pos(env.last_call_pos())
+                .err(),
+        },
+        v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
+    }
+}
+
 pub fn register_standard_library(env: &mut Env) {
     env.register_module(
         "std".to_string(),
         vec![
-            ModuleFnRecord {
-                name: "println".to_string(),
-                arg_count: 1,
-                function: std_println,
-            },
-            ModuleFnRecord {
-                name: "print".to_string(),
-                arg_count: 1,
-                function: std_print,
-            },
-            ModuleFnRecord {
-                name: "typeof".to_string(),
-                arg_count: 1,
-                function: std_typeof,
-            },
-            ModuleFnRecord {
-                name: "len".to_string(),
-                arg_count: 1,
-                function: std_len,
-            },
-            ModuleFnRecord {
-                name: "str".to_string(),
-                arg_count: 1,
-                function: std_str,
-            },
-            ModuleFnRecord {
-                name: "append".to_string(),
-                arg_count: 2,
-                function: std_array_append,
-            },
-            ModuleFnRecord {
-                name: "insert".to_string(),
-                arg_count: 3,
-                function: std_insert,
-            },
-            ModuleFnRecord {
-                name: "remove".to_string(),
-                arg_count: 2,
-                function: std_remove,
-            },
-            ModuleFnRecord {
-                name: "pop".to_string(),
-                arg_count: 1,
-                function: std_array_pop,
-            },
-            ModuleFnRecord {
-                name: "keys".to_string(),
-                arg_count: 1,
-                function: std_object_keys,
-            },
-            ModuleFnRecord {
-                name: "gc".to_string(),
-                arg_count: 0,
-                function: Env::gc,
-            },
-            ModuleFnRecord {
-                name: "time".to_string(),
-                arg_count: 0,
-                function: std_time,
-            },
-            ModuleFnRecord {
-                name: "parseInt".to_string(),
-                arg_count: 1,
-                function: std_parse_int,
-            },
+            ModuleFnRecord::new("println".to_string(), 1, std_println),
+            ModuleFnRecord::new("print".to_string(), 1, std_print),
+            ModuleFnRecord::new("typeof".to_string(), 1, std_typeof),
+            ModuleFnRecord::new("len".to_string(), 1, std_len),
+            ModuleFnRecord::new("str".to_string(), 1, std_str),
+            ModuleFnRecord::new("append".to_string(), 2, std_array_append),
+            ModuleFnRecord::new("insert".to_string(), 3, std_insert),
+            ModuleFnRecord::new("remove".to_string(), 2, std_remove),
+            ModuleFnRecord::new("pop".to_string(), 1, std_array_pop),
+            ModuleFnRecord::new("keys".to_string(), 1, std_object_keys),
+            ModuleFnRecord::new("gc".to_string(), 0, Env::gc),
+            ModuleFnRecord::new("time".to_string(), 0, std_time),
+            ModuleFnRecord::new("parseInt".to_string(), 1, std_parse_int),
+            ModuleFnRecord::new("parseFloat".to_string(), 1, std_parse_float),
         ],
     )
 }

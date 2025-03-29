@@ -1,0 +1,57 @@
+
+let std = import("std");
+
+std.println(args);
+
+# optional command line argument to scale up visual.
+let scale = 1.0;
+if std.len(args) > 0 {
+  scale = std.parseFloat(args[0] || "1.0");
+}
+
+let width = 120.0 * scale;
+let height = 30.0 * scale;
+
+# render window.
+let xmin = -2.0;
+let xmax = 1.0;
+let ymin = -1.0;
+let ymax = 1.0;
+
+# sample increments.
+let ydelta = (ymax - ymin) / height;
+let xdelta = (xmax - xmin) / width;
+
+# calculate mandelbrot value for one coordinate on
+# complex plane.
+fun mandelbrot(re, im) {
+  let max_iter = 100;
+  let zr = 0.0;
+  let zi = 0.0;
+
+  let n = 0;
+  while (zr * zr + zi * zi <= 4.0) && (n < max_iter) {
+    let temp = zr * zr - zi * zi + re;
+    zi = 2.0 * zr * zi + im;
+    zr = temp;
+    n += 1;
+  }
+  
+  return n;
+}
+
+# sample and render complex graph.
+let y = ymin;
+while y <= ymax {
+  let x = xmin;
+  
+  while x <= xmax {
+    let iter = mandelbrot(x, y);
+    std.print(if iter == 100 {"#"} else {" "});
+    x += xdelta;
+  }
+
+  std.print("\n");
+  y += ydelta;
+}
+ 

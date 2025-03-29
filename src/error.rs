@@ -5,6 +5,7 @@ use crate::{
     vm::{Env, Value},
 };
 
+#[derive(Debug, PartialEq)]
 pub enum ErrorType {
     IOError,
     NameError(String),
@@ -15,12 +16,31 @@ pub enum ErrorType {
     ArgumentError(u32, u32),
     IndexError(u32),
     ValueError,
+    CustomError,
 }
 
+#[derive(Debug)]
 pub struct Error {
     pub msg: String,
     pub err_type: ErrorType,
     pub pos: Option<io::Pos>,
+}
+
+impl ErrorType {
+    fn to_string(&self) -> &'static str {
+        match self {
+            ErrorType::IOError => "IO ERROR",
+            ErrorType::NameError(_) => "NAME ERROR",
+            ErrorType::SyntaxError => "SYNTAX ERROR",
+            ErrorType::CompilerError => "COMPILER ERROR",
+            ErrorType::TypeError(_) => "TYPE ERROR",
+            ErrorType::ArithmeticError(_) => "ARITHMETIC ERROR",
+            ErrorType::ArgumentError(_, _) => "ARGUMENT ERROR",
+            ErrorType::IndexError(_) => "INDEX ERROR",
+            ErrorType::ValueError => "VALUE ERROR",
+            ErrorType::CustomError => "ERROR",
+        }
+    }
 }
 
 impl Error {
@@ -231,7 +251,7 @@ impl Error {
                 t0.type_name(),
                 t1.type_name()
             ),
-            err_type: ErrorType::TypeError(t0.type_name()),
+            err_type: ErrorType::TypeError(t1.type_name()),
             pos: None,
         }
     }
@@ -287,6 +307,14 @@ impl Error {
         }
     }
 
+    pub fn custom_error(msg: &str) -> Self {
+        Self {
+            msg: msg.to_string(),
+            err_type: ErrorType::CustomError,
+            pos: None,
+        }
+    }
+
     pub fn dump_stack_trace(&self, env: &Env, pos0: io::Pos) {
         let mut trace = env.trace_pos();
         match trace.first() {
@@ -312,99 +340,16 @@ impl Error {
             self.dump_stack_trace(env, pos);
         }
 
-        match &self.err_type {
-            ErrorType::IOError => {
-                eprintln!("IO ERROR: {}", self.msg)
-            }
-            ErrorType::CompilerError => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "COMPILER ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::SyntaxError => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "SYNTAX ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::NameError(_) => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "NAME ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::ValueError => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "VALUE ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::TypeError(_) => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "TYPE ERROR: {} at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::ArithmeticError(v) => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "ARITHMETIC ERROR: {}, Value: {:?} at {}:{}:{}",
-                        self.msg,
-                        v.to_string(env),
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::ArgumentError(_, _) => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "ARGUMENT ERROR: {}, at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
-            ErrorType::IndexError(_) => {
-                if let Some(pos) = self.pos {
-                    eprintln!(
-                        "INDEX ERROR: {}, at {}:{}:{}",
-                        self.msg,
-                        env.sources.get_source(pos.src_id).unwrap().get_origin(),
-                        pos.line + 1,
-                        pos.column + 1
-                    )
-                }
-            }
+        eprint!("{}: {}", self.err_type.to_string(), self.msg);
+        if let Some(pos) = self.pos {
+            eprint!(
+                " at {}:{}:{}",
+                env.sources.get_source(pos.src_id).unwrap().get_origin(),
+                pos.line + 1,
+                pos.column + 1
+            )
         }
+
+        eprintln!("");
     }
 }

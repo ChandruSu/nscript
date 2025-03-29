@@ -74,8 +74,6 @@ pub trait Alloc<P> {
     fn alloc(&mut self, value: GCObject) -> P;
 
     fn free(&mut self, ptr: P);
-
-    fn stress(&self) -> f32;
 }
 
 pub struct Heap {
@@ -169,9 +167,5 @@ impl Alloc<usize> for Heap {
 
     fn access_mut(&mut self, ptr: usize) -> &mut GCObject {
         &mut self.slots[ptr]
-    }
-
-    fn stress(&self) -> f32 {
-        self.occupied as f32 / self.slots.len() as f32
     }
 }

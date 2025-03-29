@@ -21,27 +21,7 @@ All results were executed with no additional applications running in the backgro
 
 # Results
 
-## Sieve With IO and N=200,000
-
-Description: Uses the sieve of Eratosthenes algorithm to retrieve the first N primes and prints them to console
-
-Tests: arrays, iteration, arithmetic, IO
-
-Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
-:--:|---:|---:|---:
- 1|1703|3502|2640
- 2|1931|3621|2579
- 3|2207|3916|2608
- 4|2019|3608|2737
- 5|1851|3573|2484
- 6|1970|3665|2806
- 7|1828|3585|2683
- 8|1968|3756|2703
- 9|1816|3566|2671
-10|1928|3491|2654
-Average|1922.1(72.4%)|3628.3(137%)|2656.5
-
-## Sieve Without IO and N=4,000,000
+## Sieve with N=4,000,000
 
 Description: Uses the sieve of Eratosthenes algorithm to retrieve the first N primes without printing them to console
 
@@ -101,7 +81,7 @@ Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
 10|2023|750|1421
 Average|1966.6(132%)|686.3(45.9%)|1495.5
 
-## Reverse with N=10000000
+## Reverse with N=10,000,000
 
 Description: Creates an array from 0 to N (exclusive) and then reverses the array in place.
 
@@ -121,7 +101,7 @@ Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
 10|3022|1220|2706
 Average|3034.4(107%)|1246.6(44.1%)|2826.7
 
-## Closure with N=10000000
+## Closure with N=10,000,000
 
 Description: Calculates the sum of the first N natural numbers (including 0) by chained invocation of adder closures
 
@@ -141,9 +121,9 @@ Test|Python 3.10.4/ms|Lua 5.4/ms|NewScript/ms
 10|3308|2692|2361
 Average|3290.6(137%)|2726.3(113%)|2402.5
 
-## String
+## String with N=22
 
-Description: Repeatedly concatenates two strings a and b, N times until the length of the final string is `fib(2N + 2)`
+Description: Repeatedly concatenates two strings a and b, N times until the length of the final string is `fib(2N + 2)`. Results are under 1.0 second due to memory limitation in Lua.
 
 Tests: strings, concatenation
 

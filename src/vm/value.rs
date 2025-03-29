@@ -182,12 +182,15 @@ impl ops::Mul<&Value> for &Value {
 impl ops::Rem<&Value> for &Value {
     type Output = Result<Value, error::Error>;
     fn rem(self, rhs: &Value) -> Self::Output {
-        match (self, rhs) {
-            (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_rem(*v1))),
-            (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.rem(*v1))),
-            (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).rem(*v1))),
-            (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f64))),
-            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mod, t0, t1).err(),
+        match rhs {
+            Value::Int(0) | Value::Float(0.0) => error::Error::zero_division().err(),
+            _ => match (self, rhs) {
+                (Value::Int(v0), Value::Int(v1)) => Ok(Value::Int(v0.wrapping_rem(*v1))),
+                (Value::Float(v0), Value::Float(v1)) => Ok(Value::Float(v0.rem(*v1))),
+                (Value::Int(v0), Value::Float(v1)) => Ok(Value::Float((*v0 as f64).rem(*v1))),
+                (Value::Float(v0), Value::Int(v1)) => Ok(Value::Float(v0.rem((*v1) as f64))),
+                (t0, t1) => error::Error::op_type_mismatch(operator::Op::Mod, t0, t1).err(),
+            },
         }
     }
 }
@@ -242,11 +245,20 @@ impl ops::Shl<&Value> for &Value {
     type Output = Result<Value, error::Error>;
     fn shl(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
-            (Value::Int(v0), Value::Int(v1)) if *v1 >= 0 => {
-                Ok(Value::Int(v0.wrapping_shl(*v1 as u32)))
-            }
+            (Value::Int(v0), Value::Int(v1)) if *v1 >= 0 => Ok(Value::Int(v0.shl(*v1 as u32))),
             (Value::Int(_), Value::Int(v1)) => error::Error::negative_shift(*v1).err(),
             (t0, t1) => error::Error::op_type_mismatch(operator::Op::Shl, t0, t1).err(),
+        }
+    }
+}
+
+impl ops::Shr<&Value> for &Value {
+    type Output = Result<Value, error::Error>;
+    fn shr(self, rhs: &Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(v0), Value::Int(v1)) if *v1 >= 0 => Ok(Value::Int(v0.shr(*v1 as u32))),
+            (Value::Int(_), Value::Int(v1)) => error::Error::negative_shift(*v1).err(),
+            (t0, t1) => error::Error::op_type_mismatch(operator::Op::Shr, t0, t1).err(),
         }
     }
 }
