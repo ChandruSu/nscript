@@ -1,6 +1,6 @@
 use core::fmt;
 
-pub static MAX_OP_PRECEDENCE: u8 = 10;
+pub static MAX_BIN_OP_PRECEDENCE: u8 = 11;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Op {
@@ -35,18 +35,18 @@ pub enum Op {
 impl Op {
     pub fn precedence(&self) -> u8 {
         match self {
-            Op::Or => 10,
-            Op::And => 9,
-            Op::BitOr => 8,
-            Op::BitXor => 7,
-            Op::BitAnd => 6,
-            Op::Eq | Op::Neq => 5,
-            Op::Gt | Op::Ge | Op::Lt | Op::Le => 4,
-            Op::Shl | Op::Shr => 3,
-            Op::Add | Op::Sub => 2,
-            Op::Mul | Op::Div | Op::Mod => 1,
-            Op::Not | Op::BitNot => 0,
-            _ => MAX_OP_PRECEDENCE,
+            Op::Or => 1,
+            Op::And => 2,
+            Op::BitOr => 3,
+            Op::BitXor => 4,
+            Op::BitAnd => 5,
+            Op::Eq | Op::Neq => 6,
+            Op::Gt | Op::Ge | Op::Lt | Op::Le => 7,
+            Op::Shl | Op::Shr => 8,
+            Op::Add | Op::Sub => 9,
+            Op::Mul | Op::Div | Op::Mod => 10,
+            Op::Not | Op::BitNot => 11,
+            _ => MAX_BIN_OP_PRECEDENCE,
         }
     }
 

@@ -331,4 +331,4 @@ Method|Description|Arguments|Returns
 
 ## Copyright and Licencing
 
-The NewScript interpreter will be available under the MIT license, see the [license](./LICENSE.txt) document for more information.
+The NewScript interpreter will be available under the MIT license, see the [LICENSE](./LICENSE) document for more information.

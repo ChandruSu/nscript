@@ -80,6 +80,7 @@ pub struct Heap {
     slots: Vec<GCObject>,
     occupied: usize,
     head: usize,
+    collection_threshold: usize,
 }
 
 impl Heap {
@@ -88,6 +89,7 @@ impl Heap {
             head: 0,
             occupied: 0,
             slots: (0..capacity).map(|i| GCObject::empty(i + 1)).collect(),
+            collection_threshold: capacity / 2,
         }
     }
 
@@ -107,7 +109,7 @@ impl Heap {
         self.slots[ptr].mark();
 
         let get_ptr = |v: &Value| match v {
-            Value::Func(_, p) => Some(*p),
+            Value::Func(_, p) => Some(*p as usize),
             Value::Object(p) => Some(*p),
             Value::Array(p) => Some(*p),
             _ => None,
@@ -133,11 +135,21 @@ impl Heap {
                 self.free(p);
             }
         }
+
+        self.collection_threshold = self.occupied * 2;
+    }
+
+    pub fn should_collect(&self) -> bool {
+        self.occupied >= self.collection_threshold
     }
 }
 
 impl Alloc<usize> for Heap {
     fn alloc(&mut self, value: GCObject) -> usize {
+        if let GCObject::None { next: _ } = value {
+            unreachable!("Should allocate an empty slot!");
+        }
+
         let size = self.slots.capacity();
         if self.head >= size {
             self.slots
@@ -156,9 +168,14 @@ impl Alloc<usize> for Heap {
     }
 
     fn free(&mut self, ptr: usize) {
-        self.slots[ptr] = GCObject::empty(self.head);
-        self.occupied -= 1;
-        self.head = ptr;
+        match self.slots[ptr] {
+            GCObject::None { next: _ } => return,
+            _ => {
+                self.slots[ptr] = GCObject::empty(self.head);
+                self.head = ptr;
+                self.occupied -= 1
+            }
+        }
     }
 
     fn access(&self, ptr: usize) -> &GCObject {

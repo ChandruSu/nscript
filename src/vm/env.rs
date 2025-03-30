@@ -44,7 +44,7 @@ impl Env {
     pub fn new(args: Vec<String>) -> Self {
         let mut env = Self {
             calls: vec![],
-            registers: vec![Value::Null; 1024], // TODO: make these dynamic Stack allocators
+            registers: vec![Value::Null; 1024], // TODO: scale dynamically
             globals: vec![Value::Null; 1024],
             heap: Heap::new(8),
             sources: io::SourceManager::new(),
@@ -122,14 +122,15 @@ impl Env {
             .map(|call| call.sp + self.segments[call.program].slots() as usize)
             .unwrap_or(0);
 
+        let global_register_range = 0..self.get_segment(0).symbol_table().len();
+
         for register in self.registers[active_register_range]
             .iter()
-            .chain(self.globals.iter())
+            .chain(self.globals[global_register_range].iter())
         {
-            match register {
-                Value::Object(p) | Value::Func(_, p) => self.heap.mark(*p),
-                _ => continue,
-            };
+            if let Value::Object(p) | Value::Array(p) | Value::Func(_, p) = register {
+                self.heap.mark(*p)
+            }
         }
 
         self.heap.sweep();
@@ -356,10 +357,33 @@ impl Env {
                         continue 'next_call;
                     }
                     Ins::ObjNew(a) => {
+                        if self.heap.should_collect() {
+                            self.gc(0, 0)?;
+                            self.registers[ci.sp + a as usize] =
+                                Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
+
+                            ci.pc += 1;
+                            self.calls.push(ci);
+                            continue 'next_call;
+                        }
+
                         reg[a as usize] =
                             Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
                     }
                     Ins::ArrNew(a, n) => {
+                        if self.heap.should_collect() {
+                            self.gc(0, 0)?;
+
+                            self.registers[ci.sp + a as usize] = Value::Array(
+                                self.heap
+                                    .alloc(GCObject::array(vec![Value::Null; n as usize])),
+                            );
+
+                            ci.pc += 1;
+                            self.calls.push(ci);
+                            continue 'next_call;
+                        }
+
                         reg[a as usize] = Value::Array(
                             self.heap
                                 .alloc(GCObject::array(vec![Value::Null; n as usize])),

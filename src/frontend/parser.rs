@@ -6,10 +6,12 @@ use crate::{
     error,
     frontend::{
         lexer::{self, Tk},
-        operator::{self, Op},
+        operator::Op,
     },
     utils::io,
 };
+
+use super::operator::MAX_BIN_OP_PRECEDENCE;
 
 pub enum Ast {
     Null,
@@ -418,16 +420,16 @@ impl<'a> Parser<'a> {
                     pos,
                 ))
             }
-            _ => self.parse_binary(operator::MAX_OP_PRECEDENCE),
+            _ => self.parse_binary(1),
         }
     }
 
     fn parse_binary(&mut self, prec: u8) -> Result<AstNode, error::Error> {
-        if prec < 1 {
+        if prec > MAX_BIN_OP_PRECEDENCE {
             return self.parse_unary();
         }
 
-        let mut lhs = self.parse_binary(prec - 1)?;
+        let mut lhs = self.parse_binary(prec + 1)?;
 
         while let Tk::Operator(op) = self.head().tk {
             if op.precedence() != prec {
@@ -438,7 +440,7 @@ impl<'a> Parser<'a> {
 
             lhs = AstNode {
                 pos: lhs.pos,
-                ast: Ast::BinaryExp(op, Box::new(lhs), Box::new(self.parse_binary(prec - 1)?)),
+                ast: Ast::BinaryExp(op, Box::new(lhs), Box::new(self.parse_binary(prec + 1)?)),
             }
         }
 
