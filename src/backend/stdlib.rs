@@ -6,16 +6,14 @@ use std::{
 use crate::{
     error,
     vm::{
-        heap::{Alloc, GCObject},
+        heap::{Alloc, HeapNode},
         Env, ModuleFnRecord, Value,
     },
 };
 
-fn assert_arg_count(env: &Env, rec: usize, exp: usize) -> Result<(), error::Error> {
+fn assert_arg_count(_env: &Env, rec: usize, exp: usize) -> Result<(), error::Error> {
     if rec != exp {
-        error::Error::argument_error(rec as u32, exp as u32)
-            .with_pos(env.last_call_pos())
-            .err()
+        error::Error::argument_error(rec as u32, exp as u32).err()
     } else {
         Ok(())
     }
@@ -53,12 +51,10 @@ fn std_array_append(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, er
     let v = env.reg(arg0 + 1).clone();
     match env.reg(arg0) {
         Value::Array(arr) => match env.heap.access_mut(*arr) {
-            GCObject::Array { mark: _, vec } => vec.push(v),
+            HeapNode::Array { mark: _, vec } => vec.push(v),
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Array(0))
-            .with_pos(env.last_call_pos())
-            .err()?,
+        v => error::Error::type_error(v, &Value::Array(0)).err()?,
     }
     Ok(Value::Null)
 }
@@ -67,14 +63,12 @@ fn std_array_pop(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
     assert_arg_count(env, argc, 1)?;
     match env.reg(arg0) {
         Value::Array(arr) => match env.heap.access_mut(*arr) {
-            GCObject::Array { mark: _, vec } => vec
-                .pop()
-                .ok_or(error::Error::array_length_error(0).with_pos(env.last_call_pos())),
+            HeapNode::Array { mark: _, vec } => {
+                vec.pop().ok_or(error::Error::array_length_error(0))
+            }
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Array(0))
-            .with_pos(env.last_call_pos())
-            .err(),
+        v => error::Error::type_error(v, &Value::Array(0)).err(),
     }
 }
 
@@ -84,30 +78,24 @@ fn std_insert(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
     let val = env.reg(arg0 + 2).clone();
     match env.reg(arg0) {
         Value::Array(p) => match env.heap.access_mut(*p) {
-            GCObject::Array { mark: _, vec } => match key {
+            HeapNode::Array { mark: _, vec } => match key {
                 Value::Int(i) if 0 <= i && (i as usize) < vec.len() => {
                     vec.insert(i as usize, val);
                     Ok(Value::Null)
                 }
-                Value::Int(i) => error::Error::array_index_error(i as u32)
-                    .with_pos(env.last_call_pos())
-                    .err(),
-                v => error::Error::type_error(&v, &Value::Int(0))
-                    .with_pos(env.last_call_pos())
-                    .err(),
+                Value::Int(i) => error::Error::array_index_error(i as u32).err(),
+                v => error::Error::type_error(&v, &Value::Int(0)).err(),
             },
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
         Value::Object(p) => match env.heap.access_mut(*p) {
-            GCObject::Object { mark: _, map } => {
+            HeapNode::Object { mark: _, map } => {
                 map.insert(key, val);
                 Ok(Value::Null)
             }
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error_any(v)
-            .with_pos(env.last_call_pos())
-            .err(),
+        v => error::Error::type_error_any(v).err(),
     }
 }
 
@@ -116,24 +104,18 @@ fn std_remove(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
     let key = env.reg(arg0 + 1).clone();
     match env.reg(arg0) {
         Value::Array(p) => match env.heap.access_mut(*p) {
-            GCObject::Array { mark: _, vec } => match key {
+            HeapNode::Array { mark: _, vec } => match key {
                 Value::Int(i) if 0 <= i && (i as usize) < vec.len() => Ok(vec.remove(i as usize)),
-                Value::Int(i) => error::Error::array_index_error(i as u32)
-                    .with_pos(env.last_call_pos())
-                    .err(),
-                v => error::Error::type_error(&v, &Value::Int(0))
-                    .with_pos(env.last_call_pos())
-                    .err(),
+                Value::Int(i) => error::Error::array_index_error(i as u32).err(),
+                v => error::Error::type_error(&v, &Value::Int(0)).err(),
             },
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
         Value::Object(p) => match env.heap.access_mut(*p) {
-            GCObject::Object { mark: _, map } => Ok(map.remove(&key).unwrap_or(Value::Null)),
+            HeapNode::Object { mark: _, map } => Ok(map.remove(&key).unwrap_or(Value::Null)),
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error_any(v)
-            .with_pos(env.last_call_pos())
-            .err(),
+        v => error::Error::type_error_any(v).err(),
     }
 }
 
@@ -141,15 +123,13 @@ fn std_object_keys(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
     assert_arg_count(env, argc, 2)?;
     match env.reg(arg0) {
         Value::Object(p) => match env.heap.access_mut(*p) {
-            GCObject::Object { mark: _, map } => {
+            HeapNode::Object { mark: _, map } => {
                 let keys = map.keys().map(|v| v.clone()).collect();
-                Ok(Value::Array(env.heap.alloc(GCObject::array(keys))))
+                Ok(Value::Array(env.heap.allocate(HeapNode::array(keys))))
             }
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Object(0))
-            .with_pos(env.last_call_pos())
-            .err(),
+        v => error::Error::type_error(v, &Value::Object(0)).err(),
     }
 }
 
@@ -166,9 +146,7 @@ fn std_parse_int(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
     match env.reg(arg0) {
         Value::String(s) => match s.parse().into() {
             Ok(i) => Ok(Value::Int(i)),
-            Err(_) => error::Error::invalid_string_parse_input(s)
-                .with_pos(env.last_call_pos())
-                .err(),
+            Err(_) => error::Error::invalid_string_parse_input(s).err(),
         },
         v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
     }
@@ -179,9 +157,7 @@ fn std_parse_float(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
     match env.reg(arg0) {
         Value::String(s) => match s.parse().into() {
             Ok(f) => Ok(Value::Float(f)),
-            Err(_) => error::Error::invalid_string_parse_input(s)
-                .with_pos(env.last_call_pos())
-                .err(),
+            Err(_) => error::Error::invalid_string_parse_input(s).err(),
         },
         v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
     }

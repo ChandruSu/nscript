@@ -104,10 +104,6 @@ impl<'a> Lexer<'a> {
         &self.tks[(self.tki) % 3]
     }
 
-    // pub fn loohahead_token(&self) -> &Token {
-    //     &self.tks[(self.tki + 2) % 3]
-    // }
-
     fn advance(&mut self) -> char {
         if self.current_char == '\n' {
             self.cursor.column = -1;

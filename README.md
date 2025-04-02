@@ -28,7 +28,7 @@ To build the project and (optionally) install the NewScript interpreter onto you
     target/release/ns run <path/to/script.ns>
 
     # example
-    target/release/ns run ./examples/mandel.ns
+    target/release/ns run ./examples/mandelbrot.ns
     ```
 
 ### System install and run:
@@ -45,7 +45,7 @@ To build the project and (optionally) install the NewScript interpreter onto you
     ns run <path/to/script.ns>
 
     # example
-    ns run ./examples/mandel.ns
+    ns run ./examples/mandelbrot.ns
     ```
 
 ### Use as Library (Cargo)
@@ -102,7 +102,7 @@ You can run a NewScript program with command line arguments, like so:
 
 ```sh
 # Runs mandelbrot set at .6 scale
-ns run ./examples/mandel.ns --args 0.6
+ns run ./examples/mandelbrot.ns --args 0.6
 ```
 
 You can start an interactive REPL session like so:
@@ -331,4 +331,4 @@ Method|Description|Arguments|Returns
 
 ## Copyright and Licencing
 
-The NewScript interpreter will be available under the MIT license, see the [LICENSE](./LICENSE) document for more information.
+The NewScript interpreter will be available under the MIT license, see the [LICENSE](./LICENSE) document (omitted for submission) for more information.

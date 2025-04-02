@@ -20,9 +20,9 @@ pub struct Segment {
     bytecode: Vec<Ins>,
     constants: Vec<Value>,
     symbols: HashMap<String, Reg>,
-    upvals: HashMap<String, Reg>,
-    parent: Option<usize>,
+    up_values: HashMap<String, Reg>,
     positions: BTreeMap<usize, io::Pos>,
+    parent: Option<usize>,
     native: Option<NativeFnPtr>,
 }
 
@@ -34,7 +34,7 @@ impl Segment {
         bytecode: Vec<Ins>,
         constants: Vec<Value>,
         symbols: HashMap<String, Reg>,
-        upvals: HashMap<String, Reg>,
+        up_values: HashMap<String, Reg>,
         parent: Option<usize>,
         positions: BTreeMap<usize, io::Pos>,
     ) -> Self {
@@ -44,7 +44,7 @@ impl Segment {
             slots,
             bytecode,
             constants,
-            upvals,
+            up_values,
             symbols,
             positions,
             parent,
@@ -59,7 +59,7 @@ impl Segment {
             slots: 0,
             bytecode: vec![],
             constants: vec![],
-            upvals: HashMap::new(),
+            up_values: HashMap::new(),
             symbols: HashMap::new(),
             positions: BTreeMap::new(),
             parent: None,
@@ -74,7 +74,7 @@ impl Segment {
             slots: args,
             bytecode: vec![],
             constants: vec![],
-            upvals: HashMap::new(),
+            up_values: HashMap::new(),
             symbols: HashMap::new(),
             positions: BTreeMap::new(),
             parent: None,
@@ -86,7 +86,7 @@ impl Segment {
         self.bytecode.clear();
         self.positions.clear();
         self.constants.clear();
-        self.upvals.clear();
+        self.up_values.clear();
     }
 
     pub fn name(&self) -> &String {
@@ -121,12 +121,12 @@ impl Segment {
         &self.symbols
     }
 
-    pub fn upvals(&self) -> &HashMap<String, Reg> {
-        &self.upvals
+    pub fn up_values(&self) -> &HashMap<String, Reg> {
+        &self.up_values
     }
 
-    pub fn upvals_mut(&mut self) -> &HashMap<String, Reg> {
-        &mut self.upvals
+    pub fn up_values_mut(&mut self) -> &HashMap<String, Reg> {
+        &mut self.up_values
     }
 
     pub fn consts(&self) -> &Vec<Value> {
@@ -143,6 +143,10 @@ impl Segment {
 
     pub fn symbols(&self) -> &HashMap<String, Reg> {
         &self.symbols
+    }
+
+    pub fn symbols_mut(&mut self) -> &mut HashMap<String, Reg> {
+        &mut self.symbols
     }
 
     pub fn bytecode(&self) -> &Vec<Ins> {
@@ -192,26 +196,18 @@ impl Segment {
         self.symbols.get(id).map(|r| *r)
     }
 
-    pub fn symbol_table(&self) -> &HashMap<std::string::String, Reg> {
-        &self.symbols
-    }
-
-    pub fn symbol_table_mut(&mut self) -> &mut HashMap<std::string::String, Reg> {
-        &mut self.symbols
-    }
-
     pub fn new_upval(&mut self, id: String) -> Option<Reg> {
-        if self.upvals.contains_key(&id) {
+        if self.up_values.contains_key(&id) {
             None
         } else {
-            let location = Reg::try_from(self.upvals.len()).unwrap();
-            self.upvals.insert(id, location);
+            let location = Reg::try_from(self.up_values.len()).unwrap();
+            self.up_values.insert(id, location);
             Some(location)
         }
     }
 
     pub fn get_upval(&self, id: &String) -> Option<Reg> {
-        self.upvals.get(id).map(|r| *r)
+        self.up_values.get(id).map(|r| *r)
     }
 
     pub fn storek(&mut self, v: Value) -> Reg {
@@ -243,12 +239,12 @@ impl fmt::Debug for Segment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "{} {}(slots: {}, locals: {}, upvals: {}, consts: {}) {}\n{}{}\n{}",
+            "{} {}(slots: {}, locals: {}, up_values: {}, consts: {}) {}\n{}{}\n{}",
             "function".green(),
             self.name().cyan(),
             self.slots(),
             self.locals().len(),
-            self.upvals().len(),
+            self.up_values().len(),
             self.consts().len(),
             "do".green(),
             self.constants

@@ -7,7 +7,7 @@ mod vm;
 
 pub use interpreter::Interpreter;
 pub use vm::heap::Alloc;
-pub use vm::heap::GCObject;
+pub use vm::heap::HeapNode;
 pub use vm::Env;
 pub use vm::ModuleFnRecord;
 pub use vm::NativeFnPtr;

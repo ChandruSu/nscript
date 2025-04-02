@@ -24,7 +24,7 @@ impl Interpreter {
         let mut env = Env::new(args);
 
         env.get_segment_mut(0)
-            .symbol_table_mut()
+            .symbols_mut()
             .insert("_".to_string(), 0);
 
         let debug_segment_count = env.segments().len();
@@ -52,7 +52,7 @@ impl Interpreter {
             Ok(src)
                 .and_then(|src| Parser::new(&mut Lexer::new(src)).parse())
                 .and_then(|ast| Compiler::new(&mut self.env).compile(&ast).map(drop))
-                .and_then(|_| self.env.execute(0))
+                .and_then(|_| self.env.execute(0, 0))
         } else {
             let mut start = Instant::now();
 
@@ -90,7 +90,7 @@ impl Interpreter {
             }
 
             start = Instant::now();
-            let result = self.env.execute(0);
+            let result = self.env.execute(0, 0);
             if self.verbose {
                 println!(
                     "[{}] Execution took: {} ms",

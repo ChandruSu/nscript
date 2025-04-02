@@ -150,8 +150,8 @@ impl<'a> Compiler<'a> {
             .unwrap_or(self.seg().is_global().then_some(1).unwrap_or(0) + self.seg().spare_reg());
 
         let func = self.env.get_segment_mut(fid);
-        if let uc @ 1.. = func.upvals().len() {
-            func.upvals_mut()
+        if let uc @ 1.. = func.up_values().len() {
+            func.up_values_mut()
                 .clone()
                 .iter()
                 .try_for_each(|(v0, i)| self.compile_id(r0 + i, v0, pos).map(|_| ()))?;

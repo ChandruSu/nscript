@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::vm::Value;
 
 #[derive(Debug)]
-pub enum GCObject {
+pub enum HeapNode {
     Closure {
         mark: bool,
         vals: Vec<Value>,
@@ -16,14 +16,14 @@ pub enum GCObject {
         mark: bool,
         vec: Vec<Value>,
     },
-    None {
+    Free {
         next: usize,
     },
 }
 
-impl GCObject {
-    pub fn empty(next: usize) -> Self {
-        Self::None { next }
+impl HeapNode {
+    pub fn free(next: usize) -> Self {
+        Self::Free { next }
     }
 
     pub fn object(map: HashMap<Value, Value>) -> Self {
@@ -64,50 +64,8 @@ impl GCObject {
             _ => true,
         }
     }
-}
 
-pub trait Alloc<P> {
-    fn access(&self, ptr: P) -> &GCObject;
-
-    fn access_mut(&mut self, ptr: P) -> &mut GCObject;
-
-    fn alloc(&mut self, value: GCObject) -> P;
-
-    fn free(&mut self, ptr: P);
-}
-
-pub struct Heap {
-    slots: Vec<GCObject>,
-    occupied: usize,
-    head: usize,
-    collection_threshold: usize,
-}
-
-impl Heap {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            head: 0,
-            occupied: 0,
-            slots: (0..capacity).map(|i| GCObject::empty(i + 1)).collect(),
-            collection_threshold: capacity / 2,
-        }
-    }
-
-    pub fn dump(&self) {
-        println!("Heap Dump {:p} head = {}", self, self.head);
-        for (i, item) in self.slots.iter().enumerate() {
-            println!("H({}) = {:?}", i, item);
-        }
-    }
-
-    pub fn mark(&mut self, ptr: usize) {
-        // Prevents infinite recursion from cyclic reference
-        if self.slots[ptr].marked() {
-            return;
-        }
-
-        self.slots[ptr].mark();
-
+    pub fn children(&self) -> Vec<usize> {
         let get_ptr = |v: &Value| match v {
             Value::Func(_, p) => Some(*p as usize),
             Value::Object(p) => Some(*p),
@@ -115,74 +73,111 @@ impl Heap {
             _ => None,
         };
 
-        let child_nodes: Vec<usize> = match &self.slots[ptr] {
-            GCObject::Closure { mark: _, vals } => vals.iter().filter_map(get_ptr).collect(),
-            GCObject::Object { mark: _, map } => map.values().filter_map(get_ptr).collect(),
-            GCObject::Array { mark: _, vec } => vec.iter().filter_map(get_ptr).collect(),
+        match self {
+            HeapNode::Closure { mark: _, vals } => vals.iter().filter_map(get_ptr).collect(),
+            HeapNode::Object { mark: _, map } => map.values().filter_map(get_ptr).collect(),
+            HeapNode::Array { mark: _, vec } => vec.iter().filter_map(get_ptr).collect(),
             _ => unreachable!(),
-        };
+        }
+    }
+}
 
-        for &child in child_nodes.iter() {
+pub trait Alloc<P> {
+    fn access(&self, ptr: P) -> &HeapNode;
+
+    fn access_mut(&mut self, ptr: P) -> &mut HeapNode;
+
+    fn allocate(&mut self, value: HeapNode) -> P;
+
+    fn deallocate(&mut self, ptr: P);
+}
+
+pub struct Heap {
+    nodes: Vec<HeapNode>,
+    occupied: usize,
+    head: usize,
+    gc_threshold: usize,
+}
+
+impl Heap {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            head: 0,
+            occupied: 0,
+            nodes: (0..capacity).map(|i| HeapNode::free(i + 1)).collect(),
+            gc_threshold: capacity / 2,
+        }
+    }
+
+    pub fn mark(&mut self, ptr: usize) {
+        // Prevents infinite recursion from cyclic reference
+        if self.nodes[ptr].marked() {
+            return;
+        }
+
+        self.nodes[ptr].mark();
+
+        for child in self.nodes[ptr].children() {
             self.mark(child);
         }
     }
 
     pub fn sweep(&mut self) {
-        for p in 0..self.slots.len() {
-            if self.slots[p].marked() {
-                self.slots[p].unmark();
+        for p in 0..self.nodes.len() {
+            if self.nodes[p].marked() {
+                self.nodes[p].unmark();
             } else {
-                self.free(p);
+                self.deallocate(p);
             }
         }
 
-        self.collection_threshold = self.occupied * 2;
+        self.gc_threshold = self.occupied * 2;
     }
 
     pub fn should_collect(&self) -> bool {
-        self.occupied >= self.collection_threshold
+        self.occupied >= self.gc_threshold
     }
 }
 
 impl Alloc<usize> for Heap {
-    fn alloc(&mut self, value: GCObject) -> usize {
-        if let GCObject::None { next: _ } = value {
-            unreachable!("Should allocate an empty slot!");
+    fn allocate(&mut self, value: HeapNode) -> usize {
+        if let HeapNode::Free { next: _ } = value {
+            unreachable!("Cannot allocate a free node");
         }
 
-        let size = self.slots.capacity();
+        let size = self.nodes.capacity();
         if self.head >= size {
-            self.slots
-                .extend((size..2 * size).map(|i| GCObject::empty(i + 1)));
+            self.nodes
+                .extend((size..2 * size).map(|i| HeapNode::free(i + 1)));
         }
 
-        let pos = self.head;
-        self.head = match self.slots[self.head] {
-            GCObject::None { next } => next,
-            _ => unreachable!(),
+        let ptr = self.head;
+        self.head = match self.nodes[self.head] {
+            HeapNode::Free { next } => next,
+            _ => unreachable!("Head should always point to free node"),
         };
 
-        self.slots[pos] = value;
+        self.nodes[ptr] = value;
         self.occupied += 1;
-        pos
+        ptr
     }
 
-    fn free(&mut self, ptr: usize) {
-        match self.slots[ptr] {
-            GCObject::None { next: _ } => return,
+    fn deallocate(&mut self, ptr: usize) {
+        match self.nodes[ptr] {
+            HeapNode::Free { next: _ } => return,
             _ => {
-                self.slots[ptr] = GCObject::empty(self.head);
+                self.nodes[ptr] = HeapNode::free(self.head);
                 self.head = ptr;
                 self.occupied -= 1
             }
         }
     }
 
-    fn access(&self, ptr: usize) -> &GCObject {
-        &self.slots[ptr]
+    fn access(&self, ptr: usize) -> &HeapNode {
+        &self.nodes[ptr]
     }
 
-    fn access_mut(&mut self, ptr: usize) -> &mut GCObject {
-        &mut self.slots[ptr]
+    fn access_mut(&mut self, ptr: usize) -> &mut HeapNode {
+        &mut self.nodes[ptr]
     }
 }

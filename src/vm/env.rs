@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    heap::{Alloc, GCObject, Heap},
+    heap::{Alloc, Heap, HeapNode},
     segment::Segment,
     value::Value,
     NativeFnPtr,
@@ -45,7 +45,7 @@ impl Env {
         let mut env = Self {
             calls: vec![],
             registers: vec![Value::Null; 1024], // TODO: scale dynamically
-            globals: vec![Value::Null; 1024],
+            globals: vec![],
             heap: Heap::new(8),
             sources: io::SourceManager::new(),
             modules: HashMap::new(),
@@ -57,7 +57,7 @@ impl Env {
 
         stdlib::register_standard_library(&mut env);
 
-        let args_array = env.heap.alloc(GCObject::array(
+        let args_array = env.heap.allocate(HeapNode::array(
             args.into_iter()
                 .map(|a| Value::String(Rc::new(a)))
                 .collect(),
@@ -71,7 +71,7 @@ impl Env {
         self.calls
             .iter()
             .rev()
-            .filter_map(|call| self.get_segment(call.program).get_pos(call.pc))
+            .filter_map(|call| self.get_segment(call.program).get_pos(call.pc - 1))
             .map(io::Pos::clone)
             .collect()
     }
@@ -111,7 +111,7 @@ impl Env {
             ));
         }
 
-        let ptr = self.heap.alloc(GCObject::object(module));
+        let ptr = self.heap.allocate(HeapNode::object(module));
         self.modules.insert(name, ptr);
     }
 
@@ -122,7 +122,7 @@ impl Env {
             .map(|call| call.sp + self.segments[call.program].slots() as usize)
             .unwrap_or(0);
 
-        let global_register_range = 0..self.get_segment(0).symbol_table().len();
+        let global_register_range = 0..self.get_segment(0).symbols().len();
 
         for register in self.registers[active_register_range]
             .iter()
@@ -131,6 +131,10 @@ impl Env {
             if let Value::Object(p) | Value::Array(p) | Value::Func(_, p) = register {
                 self.heap.mark(*p)
             }
+        }
+
+        for module in self.modules.values() {
+            self.heap.mark(*module);
         }
 
         self.heap.sweep();
@@ -162,19 +166,22 @@ impl Env {
         &self.registers[i]
     }
 
-    pub fn reg_global(&self, i: usize) -> &Value {
-        &self.globals[i]
+    pub fn set_reg(&mut self, i: usize, value: Value) {
+        self.registers[i] = value;
     }
 
     pub fn get_global(&self, symbol: &String) -> Option<&Value> {
         self.get_segment(0)
             .get_symbol(symbol)
-            .map(|id| self.reg_global(id as usize))
+            .map(|id| &self.globals[id as usize])
     }
 
     pub fn set_global(&mut self, symbol: String, value: Value) {
-        let register = self.get_segment_mut(0).get_or_create_symbol(symbol);
-        self.globals[register as usize] = value;
+        let register = self.get_segment_mut(0).get_or_create_symbol(symbol) as usize;
+        if register >= self.globals.len() {
+            self.globals.resize(register + 1, Value::Null);
+        }
+        self.globals[register] = value;
     }
 
     pub fn last_call_pos(&self) -> Option<&io::Pos> {
@@ -183,26 +190,36 @@ impl Env {
             .and_then(|call| self.segments[call.program].get_pos(call.pc))
     }
 
-    pub fn execute(&mut self, program: usize) -> Result<(), error::Error> {
+    pub fn execute(&mut self, program: usize, closure: usize) -> Result<(), error::Error> {
+        self.globals
+            .resize(self.get_segment(program).symbols().len() * 2, Value::Null);
+
         self.calls.push(CallInfo {
             pc: 0,
             sp: 0,
-            closure: 0,
             retloc: 0,
+            closure,
             program,
         });
 
         'next_call: while let Some(mut ci) = self.calls.pop() {
             let pg = &self.segments[ci.program];
 
-            if let Some(native_fptr) = pg.native_function_pointer() {
+            if let Some(function) = pg.native_function_pointer() {
                 let slots = pg.slots();
-                self.registers[ci.retloc] = native_fptr(self, ci.sp, slots as usize)?;
-                // FIX: self.registers[ci.sp..ci.sp + slots as usize + 1].fill(Value::Null);
+                self.registers[ci.retloc] = function(self, ci.sp, slots as usize)
+                    .map_err(|e| e.with_pos(self.last_call_pos()))?;
+
                 continue 'next_call;
             }
 
-            let reg = &mut self.registers[ci.sp..ci.sp + pg.slots() as usize + 1];
+            // scale up stack to contain base pointer
+            let bp = ci.sp + pg.slots() as usize + 1;
+            if bp >= self.registers.len() {
+                self.registers.resize(bp, Value::Null);
+            }
+
+            let reg = &mut self.registers[ci.sp..bp];
             while ci.pc < pg.bytecode().len() {
                 match pg.bytecode()[ci.pc] {
                     Ins::Nop => {}
@@ -290,7 +307,7 @@ impl Env {
                     }
                     Ins::LoadU(a, b) => {
                         reg[a as usize] = match self.heap.access(ci.closure) {
-                            GCObject::Closure { mark: _, vals } => vals[b as usize].clone(),
+                            HeapNode::Closure { mark: _, vals } => vals[b as usize].clone(),
                             _ => unreachable!("value-pointer heap-object type mismatch"),
                         }
                     }
@@ -317,8 +334,9 @@ impl Env {
                         Value::Func(program, _) => {
                             reg[a as usize] = Value::Func(
                                 *program,
-                                self.heap
-                                    .alloc(GCObject::closure(reg[b as usize..c as usize].to_vec())),
+                                self.heap.allocate(HeapNode::closure(
+                                    reg[b as usize..c as usize].to_vec(),
+                                )),
                             );
                         }
                         t0 => error::Error::uncallable_type(t0)
@@ -360,7 +378,7 @@ impl Env {
                         if self.heap.should_collect() {
                             self.gc(0, 0)?;
                             self.registers[ci.sp + a as usize] =
-                                Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
+                                Value::Object(self.heap.allocate(HeapNode::object(HashMap::new())));
 
                             ci.pc += 1;
                             self.calls.push(ci);
@@ -368,7 +386,7 @@ impl Env {
                         }
 
                         reg[a as usize] =
-                            Value::Object(self.heap.alloc(GCObject::object(HashMap::new())));
+                            Value::Object(self.heap.allocate(HeapNode::object(HashMap::new())));
                     }
                     Ins::ArrNew(a, n) => {
                         if self.heap.should_collect() {
@@ -376,7 +394,7 @@ impl Env {
 
                             self.registers[ci.sp + a as usize] = Value::Array(
                                 self.heap
-                                    .alloc(GCObject::array(vec![Value::Null; n as usize])),
+                                    .allocate(HeapNode::array(vec![Value::Null; n as usize])),
                             );
 
                             ci.pc += 1;
@@ -386,14 +404,14 @@ impl Env {
 
                         reg[a as usize] = Value::Array(
                             self.heap
-                                .alloc(GCObject::array(vec![Value::Null; n as usize])),
+                                .allocate(HeapNode::array(vec![Value::Null; n as usize])),
                         );
                     }
                     Ins::ObjGet(a, b, c) => {
                         match &reg[b as usize] {
                             Value::Object(ptr) => {
                                 reg[a as usize] = match self.heap.access(*ptr) {
-                                    GCObject::Object { mark: _, map } => {
+                                    HeapNode::Object { mark: _, map } => {
                                         map.get(&reg[c as usize]).cloned().unwrap_or(Value::Null)
                                     }
                                     _ => unreachable!("value-pointer heap-object type mismatch"),
@@ -401,7 +419,7 @@ impl Env {
                             }
                             Value::Array(ptr) => {
                                 reg[a as usize] = match self.heap.access(*ptr) {
-                                    GCObject::Array { mark: _, vec } => match &reg[c as usize] {
+                                    HeapNode::Array { mark: _, vec } => match &reg[c as usize] {
                                         Value::Int(i) if 0 <= *i && (*i as usize) < vec.len() => {
                                             vec[*i as usize].clone()
                                         }
@@ -437,13 +455,13 @@ impl Env {
                         let v = reg[c as usize].clone();
                         match &reg[a as usize] {
                             Value::Object(ptr) => match self.heap.access_mut(*ptr) {
-                                GCObject::Object { mark: _, map } => {
+                                HeapNode::Object { mark: _, map } => {
                                     map.insert(k, v);
                                 }
                                 _ => unreachable!("value-pointer heap-object type mismatch"),
                             },
                             Value::Array(ptr) => match self.heap.access_mut(*ptr) {
-                                GCObject::Array { mark: _, vec } => match k {
+                                HeapNode::Array { mark: _, vec } => match k {
                                     Value::Int(i) if 0 <= i && (i as usize) < vec.len() => {
                                         vec[i as usize] = v
                                     }

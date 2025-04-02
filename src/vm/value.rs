@@ -9,7 +9,7 @@ use crate::{error, frontend::operator};
 
 use super::{
     env::Env,
-    heap::{Alloc, GCObject},
+    heap::{Alloc, HeapNode},
 };
 
 #[derive(PartialEq, Debug, Clone)]
@@ -93,7 +93,7 @@ impl Value {
             Value::Array(v) => {
                 visited.insert(*v);
                 match env.heap.access(*v) {
-                    GCObject::Array { mark: _, vec } => format!(
+                    HeapNode::Array { mark: _, vec } => format!(
                         "[{}]",
                         vec.iter()
                             .map(|v| v.repr_safe(env, visited))
@@ -106,7 +106,7 @@ impl Value {
             Value::Object(v) => {
                 visited.insert(*v);
                 match env.heap.access(*v) {
-                    GCObject::Object { mark: _, map } => format!(
+                    HeapNode::Object { mark: _, map } => format!(
                         "{{ {} }}",
                         map.iter()
                             .map(|(k, v)| format!(
@@ -127,8 +127,8 @@ impl Value {
         match self {
             Value::String(v) => Ok(v.len()),
             Value::Object(p) | Value::Array(p) => match env.heap.access(*p) {
-                GCObject::Array { mark: _, vec } => Ok(vec.len()),
-                GCObject::Object { mark: _, map } => Ok(map.len()),
+                HeapNode::Array { mark: _, vec } => Ok(vec.len()),
+                HeapNode::Object { mark: _, map } => Ok(map.len()),
                 _ => unreachable!("value-pointer heap-object type mismatch"),
             },
             Value::Null => error::Error::unexpected_null().err(),

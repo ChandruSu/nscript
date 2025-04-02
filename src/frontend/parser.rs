@@ -358,10 +358,9 @@ impl<'a> Parser<'a> {
 
         let cond = Box::new(self.parse_expression()?);
         let block1 = Box::new(self.parse_scoped_block()?);
-        let block2 = if let Tk::Else = self.head().tk {
-            Some(Box::new(self.parse_else_stmts()?))
-        } else {
-            None
+        let block2 = match self.head().tk {
+            Tk::Else => Some(Box::new(self.parse_else_stmts()?)),
+            _ => None,
         };
 
         Ok(AstNode::new(Ast::If(cond, block1, block2), pos))
@@ -426,25 +425,25 @@ impl<'a> Parser<'a> {
 
     fn parse_binary(&mut self, prec: u8) -> Result<AstNode, error::Error> {
         if prec > MAX_BIN_OP_PRECEDENCE {
-            return self.parse_unary();
-        }
+            self.parse_unary()
+        } else {
+            let mut lhs = self.parse_binary(prec + 1)?;
 
-        let mut lhs = self.parse_binary(prec + 1)?;
+            while let Tk::Operator(op) = self.head().tk {
+                if op.precedence() != prec {
+                    break;
+                }
 
-        while let Tk::Operator(op) = self.head().tk {
-            if op.precedence() != prec {
-                break;
+                self.consume()?;
+
+                lhs = AstNode {
+                    pos: lhs.pos,
+                    ast: Ast::BinaryExp(op, Box::new(lhs), Box::new(self.parse_binary(prec + 1)?)),
+                }
             }
 
-            self.consume()?;
-
-            lhs = AstNode {
-                pos: lhs.pos,
-                ast: Ast::BinaryExp(op, Box::new(lhs), Box::new(self.parse_binary(prec + 1)?)),
-            }
+            Ok(lhs)
         }
-
-        Ok(lhs)
     }
 
     fn parse_unary(&mut self) -> Result<AstNode, error::Error> {
@@ -495,7 +494,6 @@ impl<'a> Parser<'a> {
         let mut lhs = self.parse_term()?;
 
         while let nt @ (Tk::LeftParen | Tk::LeftBracket | Tk::Dot) = &self.head().tk {
-            // TODO: check lhs type
             match nt {
                 Tk::LeftParen => {
                     let pos = self.consume()?.pos;

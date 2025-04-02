@@ -2,8 +2,7 @@
 let std = import("std");
 
 fun test() {
-
-  let N = 1000;  # Adjust for more stress
+  let N = 10000;  # Adjust for more stress
   let iterations = 1000;  # Number of GC stress loops
 
   std.println("Starting GC stress test...");

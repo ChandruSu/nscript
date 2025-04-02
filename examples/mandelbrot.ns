@@ -1,8 +1,6 @@
 
 let std = import("std");
 
-std.println(args);
-
 # optional command line argument to scale up visual.
 let scale = 1.0;
 if std.len(args) > 0 {
