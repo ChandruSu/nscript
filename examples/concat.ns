@@ -6,5 +6,4 @@ fun test() {
 let x = test();
 
 let std = import("std");
-
 std.println(x);

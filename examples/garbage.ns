@@ -1,28 +1,24 @@
 
 let std = import("std");
 
-fun test() {
-  let N = 10000;  # Adjust for more stress
-  let iterations = 1000;  # Number of GC stress loops
+let N = 1000;
+let iterations = 1000;
 
-  std.println("Starting GC stress test...");
+std.println("Performing GC stress test");
 
-  let i = 0;
-  while i < iterations {
-    std.println("Starting Iteration: " + std.str(i));
+let i = 0;
+while i < iterations {
+  std.println("Iteration: " + std.str(i));
 
-    let arr = [];  # Create a new array
+  let arr = [];
 
-    let j = 0;
-    while j < N {
-      std.append(arr, j);  # Fill it with numbers
-      j += 1;
-    }
-
-    i += 1;
+  let j = 0;
+  while j < N {
+    std.append(arr, j);
+    j += 1;
   }
 
-  std.println("GC stress test complete.");
+  i += 1;
 }
 
-test();
+std.println("GC stress test complete.");

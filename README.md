@@ -329,6 +329,10 @@ Method|Description|Arguments|Returns
 `parseFloat`|Convert String into Float|String|Float
 
 
+# Testing
+
+You can test the NewScript interpreter implementation by running `cargo test` in your command line. Optionally, to generate coverage reports, install the [llvm-cov](https://crates.io/crates/cargo-llvm-cov/0.1.13#installation) rust crate and run `cargo llvm-cov --html`.
+
 ## Copyright and Licencing
 
 The NewScript interpreter will be available under the MIT license, see the [LICENSE](./LICENSE) document (omitted for submission) for more information.

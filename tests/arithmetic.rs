@@ -43,6 +43,13 @@ pub fn test_negative_numbers() {
 }
 
 #[test]
+pub fn test_double_unary() {
+    let result = Interpreter::new(false, false, vec![]).evaluate_from_string("--2 * -1");
+    assert!(result.is_ok(), "Expression should succeed");
+    assert_eq!(result.unwrap(), Value::Int(-2));
+}
+
+#[test]
 pub fn test_parentheses() {
     let result = Interpreter::new(false, false, vec![]).evaluate_from_string("(2 + 3) * 4");
     assert!(result.is_ok(), "Expression should succeed");
@@ -89,6 +96,13 @@ pub fn test_boolean_not() {
     let result = Interpreter::new(false, false, vec![]).evaluate_from_string("!true");
     assert!(result.is_ok(), "Expression should succeed");
     assert_eq!(result.unwrap(), Value::Bool(false));
+}
+
+#[test]
+pub fn test_bitwise_not() {
+    let result = Interpreter::new(false, false, vec![]).evaluate_from_string("~21");
+    assert!(result.is_ok(), "Expression should succeed");
+    assert_eq!(result.unwrap(), Value::Int(-22));
 }
 
 #[test]
@@ -352,13 +366,4 @@ pub fn test_bitwise_xor_same_number() {
     let result = Interpreter::new(false, false, vec![]).evaluate_from_string("7 ^ 7");
     assert!(result.is_ok(), "Expression should succeed");
     assert_eq!(result.unwrap(), Value::Int(0));
-}
-
-#[test]
-pub fn test_expression_fuzzy() {
-    for _ in 0..40 {
-        let result = Interpreter::new(false, false, vec![]).evaluate_from_string("7 ^ 7");
-        assert!(result.is_ok(), "Expression should succeed");
-        assert_eq!(result.unwrap(), Value::Int(0));
-    }
 }

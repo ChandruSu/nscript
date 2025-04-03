@@ -44,7 +44,7 @@ impl Env {
     pub fn new(args: Vec<String>) -> Self {
         let mut env = Self {
             calls: vec![],
-            registers: vec![Value::Null; 1024], // TODO: scale dynamically
+            registers: vec![Value::Null; 1024],
             globals: vec![],
             heap: Heap::new(8),
             sources: io::SourceManager::new(),
@@ -213,7 +213,6 @@ impl Env {
                 continue 'next_call;
             }
 
-            // scale up stack to contain base pointer
             let bp = ci.sp + pg.slots() as usize + 1;
             if bp >= self.registers.len() {
                 self.registers.resize(bp, Value::Null);

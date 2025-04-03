@@ -110,7 +110,6 @@ impl Heap {
     }
 
     pub fn mark(&mut self, ptr: usize) {
-        // Prevents infinite recursion from cyclic reference
         if self.nodes[ptr].marked() {
             return;
         }

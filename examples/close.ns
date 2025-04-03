@@ -8,6 +8,8 @@ fun mult(n) {
 
 let double = mult(2);
 let six = double(3);
-let eightf = double(4.0);
+let eight = double(4.0);
 
-let z = (fun(x){ return x + 1; })(2);
+let std = import("std");
+std.println(six);
+std.println(eight);

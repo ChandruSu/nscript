@@ -14,5 +14,5 @@ fun Animal(name, species) {
     return self;
 }
 
-let john = Animal("John", "Dog");
-john.sound();
+let dog = Animal("Spot", "Dog");
+dog.sound();

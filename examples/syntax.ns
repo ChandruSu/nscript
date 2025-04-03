@@ -1,3 +1,6 @@
+# This file demonstrates the full syntax of the NewScript language
+# and demos every language feature.
+
 let age = 20;
 let height = 1.8;
 let isMale = true;

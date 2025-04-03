@@ -97,7 +97,6 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    // TODO: test this heavily
     fn compile_function(
         &mut self,
         r: Option<Reg>,
@@ -382,7 +381,6 @@ impl<'a> Compiler<'a> {
             },
         );
 
-        // Short circuit evaluation of boolean expressions
         for idx in (start..self.seg().count()).rev() {
             let ins = match self.seg().ins().get(idx).unwrap() {
                 ins @ (Ins::JumpTrue(_, d) | Ins::JumpFalse(_, d)) => {
