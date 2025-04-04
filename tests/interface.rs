@@ -54,6 +54,7 @@ pub fn test_interpreter_execute() {
     let x = nsi.environment().get_global(&"x".to_string());
     assert!(x.is_some(), "Symbol 'x' should be defined in global scope");
     assert_eq!(x.unwrap(), &Value::Int(12));
+    nsi.environment_mut().set_reg(0, Value::Null);
 }
 
 #[test]
@@ -110,7 +111,8 @@ pub fn test_stress_gc() {
 pub fn test_stress_heap() {
     let mut nsi = Interpreter::new(false, false, vec![]);
 
-    let result = nsi.execute_from_string("\
+    let result = nsi.execute_from_string(
+        "\
         let arr = [];\
         let std = import(\"std\");\
         while std.len(arr) < 1000 {\
@@ -118,7 +120,8 @@ pub fn test_stress_heap() {
         }\
         arr = null;\
         std.gc();\
-    ");
-    
+    ",
+    );
+
     assert!(result.is_ok(), "Evaluation should succeed");
 }

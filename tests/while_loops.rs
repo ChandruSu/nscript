@@ -56,3 +56,13 @@ pub fn test_while_continue() {
     let val = nsi.environment().get_global(&"y".to_string());
     assert_eq!(val.unwrap(), &Value::Int(30));
 }
+
+#[test]
+pub fn test_while_continue_invalid_position() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("continue;");
+    assert!(state.is_err(), "Statement should fail");
+
+    assert_eq!(state.unwrap_err().err_type, ErrorType::SyntaxError);
+}

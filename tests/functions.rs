@@ -61,6 +61,17 @@ pub fn test_function_void() {
 }
 
 #[test]
+pub fn test_function_void_implicit() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("fun test() { } _ = test();");
+    assert!(state.is_ok(), "Statement should succeed");
+
+    let val = nsi.environment().get_global(&"_".to_string());
+    assert_eq!(val.unwrap(), &Value::Null);
+}
+
+#[test]
 pub fn test_function_constant() {
     let mut nsi = Interpreter::new(false, false, vec![]);
 
@@ -144,4 +155,14 @@ pub fn test_function_un_callable() {
     let state = nsi.execute_from_string("let x = null; x();");
     assert!(state.is_err(), "Statement should fail");
     assert_eq!(state.unwrap_err().err_type, ErrorType::TypeError("Null"));
+}
+
+#[test]
+pub fn test_function_return_invalid_position() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("return;");
+    assert!(state.is_err(), "Statement should fail");
+
+    assert_eq!(state.unwrap_err().err_type, ErrorType::SyntaxError);
 }

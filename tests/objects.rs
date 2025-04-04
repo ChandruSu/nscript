@@ -32,6 +32,24 @@ pub fn test_array_subscript() {
 }
 
 #[test]
+pub fn test_array_subscript_invalid_type() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let result = nsi.evaluate_from_string("[1, 2][\"a\"]");
+    assert!(result.is_err(), "Statement should fail");
+    assert_eq!(result.unwrap_err().err_type, ErrorType::TypeError("String"));
+}
+
+#[test]
+pub fn test_invalid_type_subscript() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let result = nsi.evaluate_from_string("null[1]");
+    assert!(result.is_err(), "Statement should fail");
+    assert_eq!(result.unwrap_err().err_type, ErrorType::TypeError("Null"));
+}
+
+#[test]
 pub fn test_array_subscript_assign() {
     let mut nsi = Interpreter::new(false, false, vec![]);
 
@@ -40,6 +58,24 @@ pub fn test_array_subscript_assign() {
 
     let val = nsi.environment().get_global(&"_".to_string());
     assert_eq!(val.unwrap(), &Value::Int(5));
+}
+
+#[test]
+pub fn test_array_subscript_assign_invalid_index() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("let arr = [1, 2, 3]; arr[5] = 5;");
+    assert!(state.is_err(), "Statement should fail");
+    assert_eq!(state.unwrap_err().err_type, ErrorType::IndexError(5));
+}
+
+#[test]
+pub fn test_array_subscript_assign_invalid_type() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("let arr = [1, 2, 3]; arr[\"a\"] = 5;");
+    assert!(state.is_err(), "Statement should fail");
+    assert_eq!(state.unwrap_err().err_type, ErrorType::TypeError("String"));
 }
 
 #[test]
@@ -124,6 +160,15 @@ pub fn test_object_subscript_missing_key() {
 
     let val = nsi.environment().get_global(&"_".to_string());
     assert_eq!(val.unwrap(), &Value::Null);
+}
+
+#[test]
+pub fn test_non_object_subscript() {
+    let mut nsi = Interpreter::new(false, false, vec![]);
+
+    let state = nsi.execute_from_string("_ = null; _[0] = null;");
+    assert!(state.is_err(), "Statement should succeed");
+    assert_eq!(state.unwrap_err().err_type, ErrorType::TypeError("Null"));
 }
 
 #[test]

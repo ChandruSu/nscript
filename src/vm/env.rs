@@ -439,6 +439,9 @@ impl Env {
                                         .nth(*i as usize)
                                         .map(|c| Value::String(Rc::new(c.to_string())))
                                         .unwrap_or(Value::Null),
+                                    Value::Int(i) => error::Error::array_index_error(*i as u32)
+                                        .with_pos(pg.get_pos(ci.pc))
+                                        .err()?,
                                     v => error::Error::type_error(&Value::Int(0), &v)
                                         .with_pos(pg.get_pos(ci.pc))
                                         .err()?,
@@ -467,7 +470,7 @@ impl Env {
                                     Value::Int(i) => error::Error::array_index_error(i as u32)
                                         .with_pos(pg.get_pos(ci.pc))
                                         .err()?,
-                                    v => error::Error::type_error(&v, &Value::Int(0))
+                                    v => error::Error::type_error(&Value::Int(0), &v)
                                         .with_pos(pg.get_pos(ci.pc))
                                         .err()?,
                                 },

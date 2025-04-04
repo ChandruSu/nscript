@@ -54,7 +54,7 @@ fn std_array_append(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, er
             HeapNode::Array { mark: _, vec } => vec.push(v),
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Array(0)).err()?,
+        v => error::Error::type_error(&Value::Array(0), v).err()?,
     }
     Ok(Value::Null)
 }
@@ -68,7 +68,7 @@ fn std_array_pop(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
             }
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Array(0)).err(),
+        v => error::Error::type_error(&Value::Array(0), v).err(),
     }
 }
 
@@ -84,7 +84,7 @@ fn std_insert(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
                     Ok(Value::Null)
                 }
                 Value::Int(i) => error::Error::array_index_error(i as u32).err(),
-                v => error::Error::type_error(&v, &Value::Int(0)).err(),
+                v => error::Error::type_error(&Value::Int(0), &v).err(),
             },
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
@@ -107,7 +107,7 @@ fn std_remove(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
             HeapNode::Array { mark: _, vec } => match key {
                 Value::Int(i) if 0 <= i && (i as usize) < vec.len() => Ok(vec.remove(i as usize)),
                 Value::Int(i) => error::Error::array_index_error(i as u32).err(),
-                v => error::Error::type_error(&v, &Value::Int(0)).err(),
+                v => error::Error::type_error(&Value::Int(0), &v).err(),
             },
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
@@ -120,7 +120,7 @@ fn std_remove(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::E
 }
 
 fn std_object_keys(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error::Error> {
-    assert_arg_count(env, argc, 2)?;
+    assert_arg_count(env, argc, 1)?;
     match env.reg(arg0) {
         Value::Object(p) => match env.heap.access_mut(*p) {
             HeapNode::Object { mark: _, map } => {
@@ -129,7 +129,7 @@ fn std_object_keys(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
             }
             _ => unreachable!("value-pointer heap-object type mismatch"),
         },
-        v => error::Error::type_error(v, &Value::Object(0)).err(),
+        v => error::Error::type_error(&Value::Object(0), v).err(),
     }
 }
 
@@ -148,7 +148,7 @@ fn std_parse_int(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, error
             Ok(i) => Ok(Value::Int(i)),
             Err(_) => error::Error::invalid_string_parse_input(s).err(),
         },
-        v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
+        v => error::Error::type_error(&Value::String(Rc::default()), v).err(),
     }
 }
 
@@ -159,7 +159,7 @@ fn std_parse_float(env: &mut Env, arg0: usize, argc: usize) -> Result<Value, err
             Ok(f) => Ok(Value::Float(f)),
             Err(_) => error::Error::invalid_string_parse_input(s).err(),
         },
-        v => error::Error::type_error(v, &Value::String(Rc::default())).err(),
+        v => error::Error::type_error(&Value::String(Rc::default()), v).err(),
     }
 }
 
@@ -169,7 +169,7 @@ pub fn register_standard_library(env: &mut Env) {
         vec![
             ModuleFnRecord::new("println".to_string(), 1, std_println),
             ModuleFnRecord::new("print".to_string(), 1, std_print),
-            ModuleFnRecord::new("typeof".to_string(), 1, std_typeof),
+            ModuleFnRecord::new("typeOf".to_string(), 1, std_typeof),
             ModuleFnRecord::new("len".to_string(), 1, std_len),
             ModuleFnRecord::new("str".to_string(), 1, std_str),
             ModuleFnRecord::new("append".to_string(), 2, std_array_append),

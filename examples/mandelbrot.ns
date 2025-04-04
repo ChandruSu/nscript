@@ -11,19 +11,19 @@ let width = 120.0 * scale;
 let height = 30.0 * scale;
 
 # render window.
-let xmin = -2.0;
-let xmax = 1.0;
-let ymin = -1.0;
-let ymax = 1.0;
+let x_min = -2.0;
+let x_max = 1.0;
+let y_min = -1.0;
+let y_max = 1.0;
 
 # sample increments.
-let ydelta = (ymax - ymin) / height;
-let xdelta = (xmax - xmin) / width;
+let ydelta = (y_max - y_min) / height;
+let xdelta = (x_max - x_min) / width;
 
 # calculate mandelbrot value for one coordinate on
-# complex plane.
-fun mandelbrot(re, im) {
-  let max_iter = 100;
+# complex plane. derived from pseudocode found: https://en.wikipedia.org/wiki/Mandelbrot_set
+fun calculateMandelbrot(re, im) {
+  let max_iter = 128;
   let zr = 0.0;
   let zi = 0.0;
 
@@ -39,13 +39,13 @@ fun mandelbrot(re, im) {
 }
 
 # sample and render complex graph.
-let y = ymin;
-while y <= ymax {
-  let x = xmin;
+let y = y_min;
+while y <= y_max {
+  let x = x_min;
   
-  while x <= xmax {
-    let iter = mandelbrot(x, y);
-    std.print(if iter == 100 {"#"} else {" "});
+  while x <= x_max {
+    let iter = calculateMandelbrot(x, y);
+    std.print(if iter == 128 {"#"} else {" "});
     x += xdelta;
   }
 

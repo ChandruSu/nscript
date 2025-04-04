@@ -199,7 +199,7 @@ impl Error {
     pub fn unexpected_null() -> Self {
         Self {
             msg: format!("Recieved unexpected 'null' value"),
-            err_type: ErrorType::TypeError("null"),
+            err_type: ErrorType::TypeError("Null"),
             pos: None,
         }
     }
